@@ -2,6 +2,10 @@ FROM node:20-bookworm-slim AS base
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Build args for OpenClaw Gateway (baked into image at build time)
+ARG OPENCLAW_GATEWAY_URL
+ARG OPENCLAW_GATEWAY_TOKEN
+
 FROM base AS build-deps
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
@@ -28,7 +32,9 @@ ENV NODE_ENV=production \
   PORT=4000 \
   DATABASE_PATH=/app/data/mission-control.db \
   WORKSPACE_BASE_PATH=/app/workspace \
-  PROJECTS_PATH=/app/workspace/projects
+  PROJECTS_PATH=/app/workspace/projects \
+  OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL} \
+  OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends dumb-init \
