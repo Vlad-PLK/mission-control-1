@@ -20,11 +20,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    // Get task with agent info
-    const task = queryOne<Task & { assigned_agent_name?: string; workspace_id: string }>(
-      `SELECT t.*, a.name as assigned_agent_name, a.is_master
+    // Get task with agent info and workspace folder_path
+    const task = queryOne<Task & { assigned_agent_name?: string; workspace_id: string; workspace_folder_path?: string }>(
+      `SELECT t.*, a.name as assigned_agent_name, a.is_master, w.folder_path as workspace_folder_path
        FROM tasks t
        LEFT JOIN agents a ON t.assigned_agent_id = a.id
+       LEFT JOIN workspaces w ON t.workspace_id = w.id
        WHERE t.id = ?`,
       [id]
     );
@@ -58,12 +59,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         name: string;
         role: string;
       }>(
-        `SELECT id, name, role
-         FROM agents
-         WHERE is_master = 1
-         AND id != ?
-         AND workspace_id = ?
-         AND status != 'offline'`,
+        `SELECT a.id, a.name, a.role
+         FROM agents a
+         JOIN workspace_agents wa ON wa.agent_id = a.id
+         WHERE a.is_master = 1
+         AND a.id != ?
+         AND wa.workspace_id = ?
+         AND a.status != 'offline'`,
         [agent.id, task.workspace_id]
       );
 
@@ -92,9 +94,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Get or create OpenClaw session for this agent
+    // Per-task session isolation: one OpenClaw session per (task, agent)
     let session = queryOne<OpenClawSession>(
-      'SELECT * FROM openclaw_sessions WHERE agent_id = ? AND status = ?',
-      [agent.id, 'active']
+      `SELECT *
+       FROM openclaw_sessions
+       WHERE agent_id = ?
+         AND task_id = ?
+         AND session_type = 'task'
+         AND status = 'active'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [agent.id, task.id]
     );
 
     const now = new Date().toISOString();
@@ -102,12 +112,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!session) {
       // Create session record
       const sessionId = uuidv4();
-      const openclawSessionId = `mission-control-${agent.name.toLowerCase().replace(/\s+/g, '-')}`;
-      
+      const agentSlug = agent.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      // Keep the existing Mission Control naming pattern, but make it per-task:
+      // mission-control-<taskId>-<agentSlug>
+      const openclawSessionId = `mission-control-${task.id}-${agentSlug}`;
+
       run(
-        `INSERT INTO openclaw_sessions (id, agent_id, openclaw_session_id, channel, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [sessionId, agent.id, openclawSessionId, 'mission-control', 'active', now, now]
+        `INSERT INTO openclaw_sessions (id, agent_id, openclaw_session_id, channel, status, session_type, task_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [sessionId, agent.id, openclawSessionId, 'mission-control', 'active', 'task', task.id, now, now]
       );
 
       session = queryOne<OpenClawSession>(
@@ -138,11 +154,32 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       urgent: '🔴'
     }[task.priority] || '⚪';
 
-    // Get project path for deliverables
-    const projectsPath = getProjectsPath();
+    const resolveTilde = (input: string): string => {
+      if (!input) return input;
+      if (!input.startsWith('~')) return input;
+      return input.replace(/^~/, process.env.HOME || process.env.USERPROFILE || '');
+    };
+
+    // Workspace folder_path acts as an explicit codebase directory.
+    // If set: agents must work directly inside it (no per-task subfolder).
+    // If not set: use the default projects path and create a per-task folder.
+    const codebaseDir = task.workspace_folder_path ? resolveTilde(task.workspace_folder_path.trim()) : null;
+
+    const projectsBaseDir = resolveTilde(getProjectsPath());
     const projectDir = task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const taskProjectDir = `${projectsPath}/${projectDir}`;
+
+    const taskWorkingDir = codebaseDir ? codebaseDir : `${projectsBaseDir}/${projectDir}`;
     const missionControlUrl = getMissionControlUrl();
+
+    const workDirBlock = codebaseDir
+      ? `**CODEBASE_DIR:** ${codebaseDir}
+Work directly inside this directory. Do NOT create a new subfolder for this task.`
+      : `**OUTPUT DIRECTORY:** ${taskWorkingDir}
+Create this directory and save all deliverables there.`;
+
+    const deliverableExamplePath = codebaseDir
+      ? `${codebaseDir}/path/inside/repo.ext`
+      : `${taskWorkingDir}/filename.html`;
 
     const taskMessage = `${priorityEmoji} **NEW TASK ASSIGNED**
 
@@ -152,14 +189,13 @@ ${task.description ? `**Description:** ${task.description}\n` : ''}
 ${task.due_date ? `**Due:** ${task.due_date}\n` : ''}
 **Task ID:** ${task.id}
 
-**OUTPUT DIRECTORY:** ${taskProjectDir}
-Create this directory and save all deliverables there.
+${workDirBlock}
 
 **IMPORTANT:** After completing work, you MUST call these APIs:
 1. Log activity: POST ${missionControlUrl}/api/tasks/${task.id}/activities
    Body: {"activity_type": "completed", "message": "Description of what was done"}
 2. Register deliverable: POST ${missionControlUrl}/api/tasks/${task.id}/deliverables
-   Body: {"deliverable_type": "file", "title": "File name", "path": "${taskProjectDir}/filename.html"}
+   Body: {"deliverable_type": "file", "title": "File name", "path": "${deliverableExamplePath}"}
 3. Update status: PATCH ${missionControlUrl}/api/tasks/${task.id}
    Body: {"status": "review"}
 

@@ -49,6 +49,11 @@ async function handlePlanningCompletion(taskId: string, parsed: any, messages: a
         VALUES (?, (SELECT workspace_id FROM tasks WHERE id = ?), ?, ?, ?, ?, 'standby', ?, datetime('now'), datetime('now'))
       `);
 
+      const linkAgentToWorkspace = db.prepare(`
+        INSERT OR IGNORE INTO workspace_agents (workspace_id, agent_id)
+        VALUES ((SELECT workspace_id FROM tasks WHERE id = ?), ?)
+      `);
+
       for (const agent of parsed.agents) {
         const agentId = crypto.randomUUID();
         if (!firstAgentId) firstAgentId = agentId;
@@ -62,6 +67,9 @@ async function handlePlanningCompletion(taskId: string, parsed: any, messages: a
           agent.avatar_emoji || '🤖',
           agent.soul_md || ''
         );
+
+        // Ensure membership in the task's workspace (many-to-many)
+        linkAgentToWorkspace.run(taskId, agentId);
       }
     }
 
@@ -76,16 +84,23 @@ async function handlePlanningCompletion(taskId: string, parsed: any, messages: a
     const task = queryOne<{ workspace_id: string }>('SELECT workspace_id FROM tasks WHERE id = ?', [taskId]);
     if (task) {
       const defaultMaster = queryOne<{ id: string }>(
-        `SELECT id FROM agents WHERE is_master = 1 AND workspace_id = ? ORDER BY created_at ASC LIMIT 1`,
+        `SELECT a.id
+         FROM agents a
+         JOIN workspace_agents wa ON wa.agent_id = a.id
+         WHERE a.is_master = 1
+           AND wa.workspace_id = ?
+         ORDER BY a.created_at ASC
+         LIMIT 1`,
         [task.workspace_id]
       );
       const otherOrchestrators = queryAll<{ id: string; name: string }>(
-        `SELECT id, name
-         FROM agents
-         WHERE is_master = 1
-         AND id != ?
-         AND workspace_id = ?
-         AND status != 'offline'`,
+        `SELECT a.id, a.name
+         FROM agents a
+         JOIN workspace_agents wa ON wa.agent_id = a.id
+         WHERE a.is_master = 1
+           AND a.id != ?
+           AND wa.workspace_id = ?
+           AND a.status != 'offline'`,
         [defaultMaster?.id ?? '', task.workspace_id]
       );
 

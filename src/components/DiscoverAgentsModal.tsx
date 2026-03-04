@@ -28,7 +28,10 @@ export function DiscoverAgentsModal({ onClose, workspaceId }: DiscoverAgentsModa
     setImportResult(null);
 
     try {
-      const res = await fetch('/api/agents/discover');
+      const qs = new URLSearchParams();
+      if (workspaceId) qs.set('workspace_id', workspaceId);
+      const url = `/api/agents/discover${qs.toString() ? `?${qs.toString()}` : ''}`;
+      const res = await fetch(url);
       if (!res.ok) {
         const data = await res.json();
         setError(data.error || `Failed to discover agents (${res.status})`);
@@ -41,7 +44,7 @@ export function DiscoverAgentsModal({ onClose, workspaceId }: DiscoverAgentsModa
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [workspaceId]);
 
   useEffect(() => {
     discover();
@@ -60,7 +63,9 @@ export function DiscoverAgentsModal({ onClose, workspaceId }: DiscoverAgentsModa
   };
 
   const selectAllAvailable = () => {
-    const available = agents.filter((a) => !a.already_imported).map((a) => a.id);
+    const available = agents
+      .filter((a) => !(a.already_in_workspace ?? a.already_imported))
+      .map((a) => a.id);
     setSelectedIds(new Set(available));
   };
 
@@ -118,7 +123,7 @@ export function DiscoverAgentsModal({ onClose, workspaceId }: DiscoverAgentsModa
     }
   };
 
-  const availableCount = agents.filter((a) => !a.already_imported).length;
+  const availableCount = agents.filter((a) => !(a.already_in_workspace ?? a.already_imported)).length;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -181,7 +186,7 @@ export function DiscoverAgentsModal({ onClose, workspaceId }: DiscoverAgentsModa
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-mc-text-secondary">
                   {agents.length} agent{agents.length !== 1 ? 's' : ''} found
-                  {availableCount < agents.length && ` · ${agents.length - availableCount} already imported`}
+                  {availableCount < agents.length && ` · ${agents.length - availableCount} already in workspace`}
                 </span>
                 <div className="flex gap-2">
                   <button
@@ -214,47 +219,52 @@ export function DiscoverAgentsModal({ onClose, workspaceId }: DiscoverAgentsModa
               <div className="space-y-2">
                 {agents.map((agent) => {
                   const isSelected = selectedIds.has(agent.id);
-                  const isImported = agent.already_imported;
+                  const isInWorkspace = agent.already_in_workspace ?? agent.already_imported;
+                  const isImportedGlobally = agent.already_imported_globally ?? agent.already_imported;
 
                   return (
                     <div
                       key={agent.id}
                       className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                        isImported
+                        isInWorkspace
                           ? 'border-mc-border/50 bg-mc-bg/50 opacity-60'
                           : isSelected
                           ? 'border-mc-accent/50 bg-mc-accent/5'
                           : 'border-mc-border hover:border-mc-border/80 hover:bg-mc-bg-tertiary cursor-pointer'
                       }`}
-                      onClick={() => !isImported && toggleSelection(agent.id)}
+                      onClick={() => !isInWorkspace && toggleSelection(agent.id)}
                     >
                       {/* Checkbox */}
                       <div
                         className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                          isImported
+                          isInWorkspace
                             ? 'border-green-500/50 bg-green-500/20'
                             : isSelected
                             ? 'border-mc-accent bg-mc-accent'
                             : 'border-mc-border'
                         }`}
                       >
-                        {(isSelected || isImported) && (
-                          <Check className={`w-3 h-3 ${isImported ? 'text-green-400' : 'text-mc-bg'}`} />
+                        {(isSelected || isInWorkspace) && (
+                          <Check className={`w-3 h-3 ${isInWorkspace ? 'text-green-400' : 'text-mc-bg'}`} />
                         )}
                       </div>
 
                       {/* Avatar */}
-                      <span className="text-2xl">{isImported ? '🔗' : '🤖'}</span>
+                      <span className="text-2xl">{isImportedGlobally ? '🔗' : '🤖'}</span>
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm truncate">{agent.name}</span>
-                          {isImported && (
+                          {isInWorkspace ? (
                             <span className="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded">
+                              In Workspace
+                            </span>
+                          ) : isImportedGlobally ? (
+                            <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
                               Imported
                             </span>
-                          )}
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-3 text-xs text-mc-text-secondary mt-0.5">
                           {agent.model && <span>Model: {agent.model}</span>}

@@ -49,7 +49,15 @@ export interface DiscoveredAgent {
   model?: string;
   channel?: string;
   status?: string;
+
+  // Multi-workspace import model:
+  // - already_imported: kept for backward compatibility with UI; now means "already in this workspace"
+  // - already_imported_globally: canonical agent exists in DB
+  // - already_in_workspace: canonical agent is linked to the requested workspace
   already_imported: boolean;
+  already_imported_globally?: boolean;
+  already_in_workspace?: boolean;
+
   existing_agent_id?: string;
 }
 
@@ -121,6 +129,7 @@ export interface Workspace {
   slug: string;
   description?: string;
   icon: string;
+  folder_path?: string;
   created_at: string;
   updated_at: string;
 }
@@ -149,7 +158,7 @@ export interface OpenClawSession {
   openclaw_session_id: string;
   channel?: string;
   status: string;
-  session_type: 'persistent' | 'subagent';
+  session_type: 'persistent' | 'subagent' | 'task';
   task_id?: string;
   ended_at?: string;
   created_at: string;

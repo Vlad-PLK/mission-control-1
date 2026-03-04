@@ -18,9 +18,14 @@ services:
       PROJECTS_PATH: /app/workspace/projects
       # Set this if OpenClaw runs on the host machine:
       # OPENCLAW_GATEWAY_URL: ws://host.docker.internal:18789
+    # user: "1001:1001"
     volumes:
       - mission-control-data:/app/data
       - mission-control-workspace:/app/workspace
+
+      # Make host paths available inside container so workspace CODEBASE_DIR
+      # values like /home/vlad-plk/clients/... validate correctly.
+      - ${HOST_VLAD_HOME:-/home/vlad-plk}:/home/vlad-plk
     restart: unless-stopped
 
 volumes:

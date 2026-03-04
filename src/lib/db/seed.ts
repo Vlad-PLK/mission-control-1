@@ -103,8 +103,8 @@ async function seed() {
   // Create master orchestrator agent
   const orchestratorId = uuidv4();
   db.prepare(
-    `INSERT INTO agents (id, name, role, description, avatar_emoji, status, is_master, soul_md, user_md, agents_md, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO agents (id, name, role, description, avatar_emoji, status, is_master, soul_md, user_md, agents_md, workspace_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'default', ?, ?)`
   ).run(
     orchestratorId,
     'Orchestrator',
@@ -120,6 +120,12 @@ async function seed() {
     now
   );
 
+  // Link orchestrator to default workspace (many-to-many)
+  db.prepare(
+    `INSERT OR IGNORE INTO workspace_agents (workspace_id, agent_id) VALUES ('default', ?)`
+  ).run(orchestratorId);
+
+
   // Create some example agents
   const agents = [
     { name: 'Developer', role: 'Code & Automation', emoji: '💻', desc: 'Writes code, creates automations, handles technical tasks' },
@@ -134,9 +140,14 @@ async function seed() {
     const agentId = uuidv4();
     agentIds.push(agentId);
     db.prepare(
-      `INSERT INTO agents (id, name, role, description, avatar_emoji, status, is_master, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO agents (id, name, role, description, avatar_emoji, status, is_master, workspace_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'default', ?, ?)`
     ).run(agentId, agent.name, agent.role, agent.desc, agent.emoji, 'standby', 0, now, now);
+
+    // Link to default workspace (many-to-many)
+    db.prepare(
+      `INSERT OR IGNORE INTO workspace_agents (workspace_id, agent_id) VALUES ('default', ?)`
+    ).run(agentId);
   }
 
   // Create a team conversation

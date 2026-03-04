@@ -11,7 +11,11 @@ export async function GET(request: NextRequest) {
     let agents: Agent[];
     if (workspaceId) {
       agents = queryAll<Agent>(`
-        SELECT * FROM agents WHERE workspace_id = ? ORDER BY is_master DESC, name ASC
+        SELECT a.*
+        FROM agents a
+        JOIN workspace_agents wa ON wa.agent_id = a.id
+        WHERE wa.workspace_id = ?
+        ORDER BY a.is_master DESC, a.name ASC
       `, [workspaceId]);
     } else {
       agents = queryAll<Agent>(`
@@ -37,6 +41,8 @@ export async function POST(request: NextRequest) {
     const id = uuidv4();
     const now = new Date().toISOString();
 
+    const workspaceId = (body as { workspace_id?: string }).workspace_id || 'default';
+
     run(
       `INSERT INTO agents (id, name, role, description, avatar_emoji, is_master, workspace_id, soul_md, user_md, agents_md, model, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -47,7 +53,7 @@ export async function POST(request: NextRequest) {
         body.description || null,
         body.avatar_emoji || '🤖',
         body.is_master ? 1 : 0,
-        (body as { workspace_id?: string }).workspace_id || 'default',
+        workspaceId, // legacy field
         body.soul_md || null,
         body.user_md || null,
         body.agents_md || null,
@@ -55,6 +61,12 @@ export async function POST(request: NextRequest) {
         now,
         now,
       ]
+    );
+
+    // Link agent to workspace (many-to-many)
+    run(
+      `INSERT OR IGNORE INTO workspace_agents (workspace_id, agent_id) VALUES (?, ?)` ,
+      [workspaceId, id]
     );
 
     // Log event

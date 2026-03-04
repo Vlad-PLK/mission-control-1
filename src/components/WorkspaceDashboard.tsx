@@ -239,6 +239,7 @@ function WorkspaceCard({ workspace, onDelete }: { workspace: WorkspaceStats; onD
 function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('📁');
+  const [folderPath, setFolderPath] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -252,10 +253,20 @@ function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => void; onC
     setError(null);
 
     try {
+      const body: { name: string; icon: string; folder_path?: string } = { 
+        name: name.trim(), 
+        icon 
+      };
+      
+      // Only include folder_path if it's not empty
+      if (folderPath.trim()) {
+        body.folder_path = folderPath.trim();
+      }
+
       const res = await fetch('/api/workspaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), icon }),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
@@ -311,6 +322,23 @@ function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => void; onC
               className="w-full bg-mc-bg border border-mc-border rounded-lg px-4 py-2 focus:outline-none focus:border-mc-accent"
               autoFocus
             />
+          </div>
+
+          {/* Folder path input */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Code Folder <span className="text-mc-text-secondary">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={folderPath}
+              onChange={(e) => setFolderPath(e.target.value)}
+              placeholder="e.g., /home/vlad-plk/clients/cafe-fino/CODE/ or ~/clients/project/CODE/"
+              className="w-full bg-mc-bg border border-mc-border rounded-lg px-4 py-2 focus:outline-none focus:border-mc-accent"
+            />
+            <p className="text-xs text-mc-text-secondary mt-1">
+              Agents in this workspace will work inside this folder (your real codebase) instead of a newly created per-task directory.
+            </p>
           </div>
 
           {error && (

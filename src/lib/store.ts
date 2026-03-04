@@ -144,7 +144,12 @@ export const useMissionControl = create<MissionControlState>((set) => ({
         agent.id === updatedAgent.id ? updatedAgent : agent
       ),
     })),
-  addAgent: (agent) => set((state) => ({ agents: [...state.agents, agent] })),
+  addAgent: (agent) => set((state) => {
+    if (state.agents.some((a) => a.id === agent.id)) {
+      return state;
+    }
+    return { agents: [...state.agents, agent] };
+  }),
 
   // OpenClaw actions
   setAgentOpenClawSession: (agentId, session) =>

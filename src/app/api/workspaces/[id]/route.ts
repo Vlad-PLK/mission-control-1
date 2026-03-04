@@ -36,7 +36,32 @@ export async function PATCH(
   
   try {
     const body = await request.json();
-    const { name, description, icon } = body;
+    const { name, description, icon, folder_path } = body;
+    
+    // Validate folder_path if provided
+    if (folder_path !== undefined) {
+      if (folder_path === null || folder_path === '') {
+        // Allow clearing the folder_path
+      } else if (typeof folder_path === 'string') {
+        const fs = await import('fs');
+        
+        // Resolve the path (handle ~ for home directory)
+        let resolvedPath = folder_path;
+        if (folder_path.startsWith('~')) {
+          resolvedPath = folder_path.replace(/^~/, process.env.HOME || process.env.USERPROFILE || '');
+        }
+        
+        // Check if directory exists
+        if (!fs.existsSync(resolvedPath)) {
+          return NextResponse.json({ error: `Directory does not exist: ${folder_path}` }, { status: 400 });
+        }
+        
+        // Check if it's a directory
+        if (!fs.statSync(resolvedPath).isDirectory()) {
+          return NextResponse.json({ error: `Path is not a directory: ${folder_path}` }, { status: 400 });
+        }
+      }
+    }
     
     const db = getDb();
     
@@ -61,6 +86,10 @@ export async function PATCH(
     if (icon !== undefined) {
       updates.push('icon = ?');
       values.push(icon);
+    }
+    if (folder_path !== undefined) {
+      updates.push('folder_path = ?');
+      values.push(folder_path || null);
     }
     
     if (updates.length === 0) {
@@ -109,7 +138,7 @@ export async function DELETE(
     ).get(id) as { count: number };
     
     const agentCount = db.prepare(
-      'SELECT COUNT(*) as count FROM agents WHERE workspace_id = ?'
+      'SELECT COUNT(*) as count FROM workspace_agents WHERE workspace_id = ?'
     ).get(id) as { count: number };
     
     if (taskCount.count > 0 || agentCount.count > 0) {

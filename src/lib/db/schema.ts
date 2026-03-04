@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
   slug TEXT NOT NULL UNIQUE,
   description TEXT,
   icon TEXT DEFAULT '📁',
+  folder_path TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -39,6 +40,15 @@ CREATE TABLE IF NOT EXISTS agents (
   gateway_agent_id TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Workspace membership (many-to-many)
+-- NOTE: workspace_id on agents is legacy; use this table for membership.
+CREATE TABLE IF NOT EXISTS workspace_agents (
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  added_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (workspace_id, agent_id)
 );
 
 -- Tasks table (Mission Queue)
@@ -176,6 +186,8 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_agent_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_workspace ON tasks(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_agents_workspace ON agents(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_agents_workspace ON workspace_agents(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_agents_agent ON workspace_agents(agent_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);

@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         
         // Get agent count
         const agentCount = db.prepare(
-          'SELECT COUNT(*) as count FROM agents WHERE workspace_id = ?'
+          'SELECT COUNT(*) as count FROM workspace_agents WHERE workspace_id = ?'
         ).get(workspace.id) as { count: number };
         
         return {
@@ -76,10 +76,32 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, icon } = body;
+    const { name, description, icon, folder_path } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    // Validate folder_path if provided
+    if (folder_path && typeof folder_path === 'string') {
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      // Resolve the path (handle ~ for home directory)
+      let resolvedPath = folder_path;
+      if (folder_path.startsWith('~')) {
+        resolvedPath = folder_path.replace(/^~/, process.env.HOME || process.env.USERPROFILE || '');
+      }
+      
+      // Check if directory exists
+      if (!fs.existsSync(resolvedPath)) {
+        return NextResponse.json({ error: `Directory does not exist: ${folder_path}` }, { status: 400 });
+      }
+      
+      // Check if it's a directory
+      if (!fs.statSync(resolvedPath).isDirectory()) {
+        return NextResponse.json({ error: `Path is not a directory: ${folder_path}` }, { status: 400 });
+      }
     }
 
     const db = getDb();
@@ -93,9 +115,9 @@ export async function POST(request: NextRequest) {
     }
 
     db.prepare(`
-      INSERT INTO workspaces (id, name, slug, description, icon)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, name.trim(), slug, description || null, icon || '📁');
+      INSERT INTO workspaces (id, name, slug, description, icon, folder_path)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, name.trim(), slug, description || null, icon || '📁', folder_path || null);
 
     const workspace = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id);
     return NextResponse.json(workspace, { status: 201 });

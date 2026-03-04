@@ -202,7 +202,7 @@ export default function WorkspacePage() {
 
   return (
     <div className="h-screen flex flex-col bg-mc-bg overflow-hidden">
-      <Header workspace={workspace} />
+      <Header workspace={workspace} onWorkspaceUpdated={setWorkspace} />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Agents Sidebar */}

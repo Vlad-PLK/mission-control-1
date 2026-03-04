@@ -19,7 +19,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const session = queryOne<OpenClawSession>(
-      'SELECT * FROM openclaw_sessions WHERE agent_id = ? AND status = ?',
+      `SELECT *
+       FROM openclaw_sessions
+       WHERE agent_id = ?
+         AND status = ?
+         AND session_type = 'persistent'`,
       [id, 'active']
     );
 
@@ -47,9 +51,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
 
-    // Check if already linked
+    // Check if already linked (persistent session only)
     const existingSession = queryOne<OpenClawSession>(
-      'SELECT * FROM openclaw_sessions WHERE agent_id = ? AND status = ?',
+      `SELECT *
+       FROM openclaw_sessions
+       WHERE agent_id = ?
+         AND status = ?
+         AND session_type = 'persistent'`,
       [id, 'active']
     );
     if (existingSession) {
@@ -85,14 +93,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Store the link in our database - session ID will be set when first message is sent
-    // For now, use agent name as the session identifier
+    // This is a "persistent" session (not per-task)
     const sessionId = uuidv4();
-    const openclawSessionId = `mission-control-${agent.name.toLowerCase().replace(/\s+/g, '-')}`;
+    const agentSlug = agent.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const openclawSessionId = `mission-control-${agentSlug}`;
     const now = new Date().toISOString();
 
     run(
-      `INSERT INTO openclaw_sessions (id, agent_id, openclaw_session_id, channel, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO openclaw_sessions (id, agent_id, openclaw_session_id, channel, status, session_type, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'persistent', ?, ?)`,
       [sessionId, id, openclawSessionId, 'mission-control', 'active', now, now]
     );
 
@@ -129,7 +138,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const existingSession = queryOne<OpenClawSession>(
-      'SELECT * FROM openclaw_sessions WHERE agent_id = ? AND status = ?',
+      `SELECT *
+       FROM openclaw_sessions
+       WHERE agent_id = ?
+         AND status = ?
+         AND session_type = 'persistent'`,
       [id, 'active']
     );
 

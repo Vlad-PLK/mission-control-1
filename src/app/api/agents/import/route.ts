@@ -15,6 +15,9 @@ interface ImportRequest {
 }
 
 // POST /api/agents/import - Import one or more agents from the OpenClaw Gateway
+// Multi-workspace semantics:
+// - A gateway agent (gateway_agent_id) is imported ONCE into the agents table (canonical identity)
+// - Then it can be linked into many workspaces via workspace_agents
 export async function POST(request: NextRequest) {
   try {
     const body: ImportRequest = await request.json();
@@ -36,13 +39,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check for conflicts (already imported)
-    const existingImports = queryAll<Agent>(
+    // Load existing canonical gateway agents
+    const existingAgents = queryAll<Agent>(
       `SELECT * FROM agents WHERE gateway_agent_id IS NOT NULL`
     );
-    const importedGatewayIds = new Set(existingImports.map((a) => a.gateway_agent_id));
+    const existingByGatewayId = new Map(existingAgents.map((a) => [a.gateway_agent_id!, a]));
 
-    const results: { imported: Agent[]; skipped: { gateway_agent_id: string; reason: string }[] } = {
+    const results: {
+      imported: Agent[];
+      skipped: { gateway_agent_id: string; reason: string }[];
+    } = {
       imported: [],
       skipped: [],
     };
@@ -51,47 +57,73 @@ export async function POST(request: NextRequest) {
       const now = new Date().toISOString();
 
       for (const agentReq of body.agents) {
-        // Skip if already imported
-        if (importedGatewayIds.has(agentReq.gateway_agent_id)) {
+        const workspaceId = agentReq.workspace_id || 'default';
+
+        // 1) Get or create canonical agent row
+        let agent = existingByGatewayId.get(agentReq.gateway_agent_id);
+        let agentId: string;
+        let created = false;
+
+        if (!agent) {
+          created = true;
+          agentId = uuidv4();
+
+          run(
+            `INSERT INTO agents (id, name, role, description, avatar_emoji, is_master, workspace_id, model, source, gateway_agent_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              agentId,
+              agentReq.name,
+              'Imported Agent',
+              `Imported from OpenClaw Gateway (${agentReq.gateway_agent_id})`,
+              '🔗',
+              0,
+              workspaceId, // legacy field
+              agentReq.model || null,
+              'gateway',
+              agentReq.gateway_agent_id,
+              now,
+              now,
+            ]
+          );
+
+          // Log event only when the canonical agent is created
+          run(
+            `INSERT INTO events (id, type, agent_id, message, created_at)
+             VALUES (?, ?, ?, ?, ?)`,
+            [uuidv4(), 'agent_joined', agentId, `${agentReq.name} imported from OpenClaw Gateway`, now]
+          );
+
+          agent = queryOne<Agent>('SELECT * FROM agents WHERE id = ?', [agentId]);
+          if (agent) {
+            existingByGatewayId.set(agentReq.gateway_agent_id, agent);
+          }
+        } else {
+          agentId = agent.id;
+        }
+
+        if (!agent) {
           results.skipped.push({
             gateway_agent_id: agentReq.gateway_agent_id,
-            reason: 'Already imported',
+            reason: 'Failed to create or load agent',
           });
           continue;
         }
 
-        const id = uuidv4();
-        const workspaceId = agentReq.workspace_id || 'default';
-
-        run(
-          `INSERT INTO agents (id, name, role, description, avatar_emoji, is_master, workspace_id, model, source, gateway_agent_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            agentReq.name,
-            'Imported Agent',
-            `Imported from OpenClaw Gateway (${agentReq.gateway_agent_id})`,
-            '🔗',
-            0,
-            workspaceId,
-            agentReq.model || null,
-            'gateway',
-            agentReq.gateway_agent_id,
-            now,
-            now,
-          ]
+        // 2) Link agent to workspace (many-to-many)
+        const linkRes = run(
+          `INSERT OR IGNORE INTO workspace_agents (workspace_id, agent_id) VALUES (?, ?)`,
+          [workspaceId, agentId]
         );
 
-        // Log event
-        run(
-          `INSERT INTO events (id, type, agent_id, message, created_at)
-           VALUES (?, ?, ?, ?, ?)`,
-          [uuidv4(), 'agent_joined', id, `${agentReq.name} imported from OpenClaw Gateway`, now]
-        );
-
-        const agent = queryOne<Agent>('SELECT * FROM agents WHERE id = ?', [id]);
-        if (agent) {
+        if (created || linkRes.changes > 0) {
+          // Return the canonical agent row
           results.imported.push(agent);
+        } else {
+          results.skipped.push({
+            gateway_agent_id: agentReq.gateway_agent_id,
+            reason: 'Already in workspace',
+          });
         }
       }
     });

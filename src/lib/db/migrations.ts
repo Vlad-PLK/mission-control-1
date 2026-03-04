@@ -202,6 +202,79 @@ const migrations: Migration[] = [
         console.log('[Migration 007] Added gateway_agent_id to agents');
       }
     }
+  },
+  {
+    id: '008',
+    name: 'add_workspace_folder_path',
+    up: (db) => {
+      console.log('[Migration 008] Adding folder_path to workspaces...');
+
+      const workspacesInfo = db.prepare("PRAGMA table_info(workspaces)").all() as { name: string }[];
+
+      // Add folder_path column to workspaces
+      if (!workspacesInfo.some(col => col.name === 'folder_path')) {
+        db.exec(`ALTER TABLE workspaces ADD COLUMN folder_path TEXT`);
+        console.log('[Migration 008] Added folder_path to workspaces');
+      }
+    }
+  },
+  {
+    id: '009',
+    name: 'add_workspace_agents_join_table',
+    up: (db) => {
+      console.log('[Migration 009] Adding workspace_agents join table (many-to-many)...');
+
+      // Create workspace_agents table if not exists
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS workspace_agents (
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+          added_at TEXT DEFAULT (datetime('now')),
+          PRIMARY KEY (workspace_id, agent_id)
+        );
+      `);
+
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_workspace_agents_workspace ON workspace_agents(workspace_id);`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_workspace_agents_agent ON workspace_agents(agent_id);`);
+
+      // Backfill memberships from legacy agents.workspace_id
+      // (Keeps existing behavior intact after the model shift)
+      const agentsInfo = db.prepare("PRAGMA table_info(agents)").all() as { name: string }[];
+      if (agentsInfo.some(col => col.name === 'workspace_id')) {
+        db.exec(`
+          INSERT OR IGNORE INTO workspace_agents (workspace_id, agent_id)
+          SELECT workspace_id, id FROM agents
+          WHERE workspace_id IS NOT NULL
+        `);
+      }
+
+      console.log('[Migration 009] workspace_agents created + backfilled');
+    }
+  },
+  {
+    id: '010',
+    name: 'add_openclaw_sessions_task_and_type',
+    up: (db) => {
+      console.log('[Migration 010] Adding session_type and task_id to openclaw_sessions...');
+
+      const sessionsInfo = db.prepare("PRAGMA table_info(openclaw_sessions)").all() as { name: string }[];
+
+      // Add session_type column if not exists
+      if (!sessionsInfo.some(col => col.name === 'session_type')) {
+        db.exec(`ALTER TABLE openclaw_sessions ADD COLUMN session_type TEXT DEFAULT 'persistent'`);
+        console.log('[Migration 010] Added session_type to openclaw_sessions');
+      }
+
+      // Add task_id column if not exists
+      if (!sessionsInfo.some(col => col.name === 'task_id')) {
+        db.exec(`ALTER TABLE openclaw_sessions ADD COLUMN task_id TEXT`);
+        console.log('[Migration 010] Added task_id to openclaw_sessions');
+      }
+
+      // Normalize existing rows
+      db.exec(`UPDATE openclaw_sessions SET session_type = 'persistent' WHERE session_type IS NULL OR session_type = ''`);
+      console.log('[Migration 010] Normalized openclaw_sessions.session_type');
+    }
   }
 ];
 

@@ -185,6 +185,14 @@ export async function PATCH(
       });
     }
 
+    // Auto-cleanup task sessions when task is marked done (best-effort)
+    if (validatedData.status === 'done' && existing.status !== 'done') {
+      const { cleanupTaskSessions } = await import('@/lib/task-session-cleanup');
+      cleanupTaskSessions(id, { deleteTranscript: true }).catch((err) => {
+        console.error('Task session cleanup failed:', err);
+      });
+    }
+
     return NextResponse.json(task);
   } catch (error) {
     console.error('Failed to update task:', error);
@@ -203,6 +211,14 @@ export async function DELETE(
 
     if (!existing) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+
+    // Best-effort cleanup of gateway sessions for this task
+    try {
+      const { cleanupTaskSessions } = await import('@/lib/task-session-cleanup');
+      await cleanupTaskSessions(id, { deleteTranscript: true });
+    } catch (err) {
+      console.error('Task session cleanup failed during delete:', err);
     }
 
     // Delete or nullify related records first (foreign key constraints)

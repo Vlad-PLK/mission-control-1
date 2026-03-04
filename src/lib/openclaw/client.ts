@@ -450,6 +450,14 @@ export class OpenClawClient extends EventEmitter {
     return this.call<OpenClawSessionInfo>('sessions.create', { channel, peer });
   }
 
+  async deleteSession(key: string, opts?: { deleteTranscript?: boolean; emitLifecycleHooks?: boolean }): Promise<void> {
+    await this.call('sessions.delete', {
+      key,
+      deleteTranscript: opts?.deleteTranscript,
+      emitLifecycleHooks: opts?.emitLifecycleHooks,
+    });
+  }
+
   // Agent methods
   async listAgents(): Promise<unknown[]> {
     const result = await this.call<{ agents?: unknown[] }>('agents.list');

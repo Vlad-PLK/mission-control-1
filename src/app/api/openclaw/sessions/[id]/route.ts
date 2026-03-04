@@ -157,7 +157,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/openclaw/sessions/[id] - Delete a session and its associated agent
+// DELETE /api/openclaw/sessions/[id] - Delete a session (Gateway + DB)
 export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
@@ -180,7 +180,20 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const taskId = session.task_id;
     const agentId = session.agent_id;
 
-    // Delete the session
+    // Delete session in Gateway (best-effort)
+    try {
+      const { toGatewaySessionKey } = await import('@/lib/openclaw/sessionKeys');
+      const client = getOpenClawClient();
+      if (!client.isConnected()) {
+        await client.connect();
+      }
+      const key = toGatewaySessionKey(session.openclaw_session_id);
+      await client.deleteSession(key, { deleteTranscript: true, emitLifecycleHooks: true });
+    } catch (err) {
+      console.error('[OpenClaw Sessions DELETE] Gateway delete failed (continuing DB cleanup):', err);
+    }
+
+    // Delete the DB record
     db.prepare('DELETE FROM openclaw_sessions WHERE id = ?').run(session.id);
 
     // If there's an associated agent that was auto-created (role = 'Sub-Agent'), delete it too
@@ -189,8 +202,8 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       if (agent && agent.role === 'Sub-Agent') {
         db.prepare('DELETE FROM agents WHERE id = ?').run(agentId);
       } else if (agent) {
-        // Update non-subagent back to idle
-        db.prepare('UPDATE agents SET status = ? WHERE id = ?').run('idle', agentId);
+        // Update non-subagent back to standby
+        db.prepare('UPDATE agents SET status = ? WHERE id = ?').run('standby', agentId);
       }
     }
 

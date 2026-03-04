@@ -95,7 +95,13 @@ export async function POST(
     // Check if there are other orchestrators available before starting planning with the default master agent
     // Get the default master agent for this workspace
     const defaultMaster = queryOne<{ id: string }>(
-      `SELECT id FROM agents WHERE is_master = 1 AND workspace_id = ? ORDER BY created_at ASC LIMIT 1`,
+      `SELECT a.id
+       FROM agents a
+       JOIN workspace_agents wa ON wa.agent_id = a.id
+       WHERE a.is_master = 1
+         AND wa.workspace_id = ?
+       ORDER BY a.created_at ASC
+       LIMIT 1`,
       [task.workspace_id]
     );
 
@@ -104,12 +110,13 @@ export async function POST(
       name: string;
       role: string;
     }>(
-      `SELECT id, name, role
-       FROM agents
-       WHERE is_master = 1
-       AND id != ?
-       AND workspace_id = ?
-       AND status != 'offline'`,
+      `SELECT a.id, a.name, a.role
+       FROM agents a
+       JOIN workspace_agents wa ON wa.agent_id = a.id
+       WHERE a.is_master = 1
+         AND a.id != ?
+         AND wa.workspace_id = ?
+         AND a.status != 'offline'`,
       [defaultMaster?.id ?? '', task.workspace_id]
     );
 
