@@ -4,6 +4,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_OPENCLAW_GATEWAY_URL: ws://127.0.0.1:18789
+        OPENCLAW_GATEWAY_TOKEN: c48dbe0ce2d3e4b08698cb52f163b777308b28438d9e7862
     image: mission-control:latest
     network_mode: host
     env_file:
@@ -17,7 +20,8 @@ services:
       WORKSPACE_BASE_PATH: /app/workspace
       PROJECTS_PATH: /app/workspace/projects
       # Set this if OpenClaw runs on the host machine:
-      # OPENCLAW_GATEWAY_URL: ws://host.docker.internal:18789
+      OPENCLAW_GATEWAY_URL: ws://127.0.0.1:18789
+      NEXT_PUBLIC_OPENCLAW_GATEWAY_URL: ws://127.0.0.1:18789
     # user: "1001:1001"
     volumes:
       - mission-control-data:/app/data

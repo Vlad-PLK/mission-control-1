@@ -5,7 +5,15 @@ import type { OpenClawMessage, OpenClawSessionInfo } from '../types';
 import { loadOrCreateDeviceIdentity, signDevicePayload, buildDeviceAuthPayload, publicKeyRawBase64Url } from './device-identity';
 import { createHash } from 'crypto';
 
-const GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || 'ws://127.0.0.1:18789';
+// Polyfill WebSocket for Node.js (server-side usage in API routes)
+import WebSocket from 'ws';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+if (typeof (globalThis as any).WebSocket === 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).WebSocket = WebSocket;
+}
+
+const GATEWAY_URL = process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_URL || 'ws://127.0.0.1:18789';
 const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 
 // Global deduplication cache that persists across module reloads in Next.js dev
@@ -344,7 +352,8 @@ export class OpenClawClient extends EventEmitter {
 
         // Track and assign the message handler
         this.messageHandlers.add(messageHandler);
-        this.ws.onmessage = messageHandler;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this.ws as any).onmessage = messageHandler;
       } catch (err) {
         this.connecting = null;
         reject(err);

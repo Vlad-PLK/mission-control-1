@@ -5,6 +5,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Build args for OpenClaw Gateway (baked into image at build time)
 ARG OPENCLAW_GATEWAY_URL
 ARG OPENCLAW_GATEWAY_TOKEN
+ARG NEXT_PUBLIC_OPENCLAW_GATEWAY_URL
 
 FROM base AS build-deps
 RUN apt-get update \
@@ -23,6 +24,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 FROM base AS builder
 COPY --from=build-deps /app/node_modules ./node_modules
 COPY . .
+RUN npm rebuild better-sqlite3
 RUN npm run build
 
 FROM node:20-bookworm-slim AS runner
@@ -37,7 +39,7 @@ ENV NODE_ENV=production \
   OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends dumb-init \
+  && apt-get install -y --no-install-recommends dumb-init python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=prod-deps /app/node_modules ./node_modules
