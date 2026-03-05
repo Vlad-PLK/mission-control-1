@@ -1,27 +1,37 @@
 services:
-  mission-control:
-    container_name: mission-control
+  mission-control-alt:
+    container_name: mission-control-alt
     build:
       context: .
       dockerfile: Dockerfile
-    image: mission-control:latest
-    ports:
-      - "4000:4000"
+    image: mission-control-alt:latest
+    network_mode: host
     env_file:
       - path: .env
         required: false
+      - path: .env.local
+        required: false
     environment:
       NODE_ENV: production
+      PORT: 4001
       DATABASE_PATH: /app/data/mission-control.db
       WORKSPACE_BASE_PATH: /app/workspace
       PROJECTS_PATH: /app/workspace/projects
       # Set this if OpenClaw runs on the host machine:
       # OPENCLAW_GATEWAY_URL: ws://host.docker.internal:18789
+    command: ["npx", "next", "start", "-p", "4001"]
+    # user: "1001:1001"
     volumes:
       - mission-control-data:/app/data
       - mission-control-workspace:/app/workspace
+
+      # Make host paths available inside container so workspace CODEBASE_DIR
+      # values like /home/vlad-plk/clients/... validate correctly.
+      - ${HOST_VLAD_HOME:-/home/vlad-plk}:/home/vlad-plk
     restart: unless-stopped
 
 volumes:
   mission-control-data:
+    external: true
   mission-control-workspace:
+    external: true
