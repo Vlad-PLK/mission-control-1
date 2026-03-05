@@ -39,6 +39,9 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
     status: task?.status || 'inbox' as TaskStatus,
     assigned_agent_id: task?.assigned_agent_id || '',
     due_date: task?.due_date || '',
+    group_id: task?.group_id || '',
+    parent_id: task?.parent_id || '',
+    order_index: task?.order_index || 0,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,6 +58,9 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
         status: (!task && usePlanningMode) ? 'planning' : form.status,
         assigned_agent_id: form.assigned_agent_id || null,
         due_date: form.due_date || null,
+        group_id: form.group_id || null,
+        parent_id: form.parent_id || null,
+        order_index: form.order_index || null,
         workspace_id: workspaceId || task?.workspace_id || 'default',
       };
 
@@ -297,10 +303,44 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
                   {agent.avatar_emoji} {agent.name} - {agent.role}
                 </option>
               ))}
-              <option value="__add_new__" className="text-mc-accent">
-                ➕ Add new agent...
-              </option>
             </select>
+          </div>
+
+          {/* Task Group */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Task Group</label>
+            <select
+              value={form.group_id}
+              onChange={(e) => setForm({ ...form, group_id: e.target.value })}
+              className="w-full bg-mc-bg border border-mc-border rounded px-3 py-2 text-sm focus:outline-none focus:border-mc-accent"
+            >
+              <option value="">No Group</option>
+              {useMissionControl.getState().taskGroups
+                .filter((g) => g.workspace_id === (workspaceId || task?.workspace_id || 'default'))
+                .map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.color && (
+                      <span
+                        className="inline-block w-3 h-3 rounded-full mr-2"
+                        style={{ backgroundColor: group.color }}
+                      />
+                    )}
+                    {group.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {/* Order Index */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Order</label>
+            <input
+              type="number"
+              value={form.order_index}
+              onChange={(e) => setForm({ ...form, order_index: parseInt(e.target.value) || 0 })}
+              min="0"
+              className="w-24 bg-mc-bg border border-mc-border rounded px-3 py-2 text-sm focus:outline-none focus:border-mc-accent"
+            />
           </div>
 
           {/* Due Date */}

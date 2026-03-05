@@ -2,12 +2,13 @@
 
 import { create } from 'zustand';
 import { debug } from './debug';
-import type { Agent, Task, Conversation, Message, Event, TaskStatus, OpenClawSession } from './types';
+import type { Agent, Task, Conversation, Message, Event, TaskStatus, OpenClawSession, TaskGroup } from './types';
 
 interface MissionControlState {
   // Data
   agents: Agent[];
   tasks: Task[];
+  taskGroups: TaskGroup[]; // NEW: Task Groups
   conversations: Conversation[];
   events: Event[];
   currentConversation: Conversation | null;
@@ -27,6 +28,10 @@ interface MissionControlState {
   // Actions
   setAgents: (agents: Agent[]) => void;
   setTasks: (tasks: Task[]) => void;
+  setTaskGroups: (groups: TaskGroup[]) => void;
+  addTaskGroup: (group: TaskGroup) => void;
+  updateTaskGroup: (group: TaskGroup) => void;
+  removeTaskGroup: (groupId: string) => void;
   setConversations: (conversations: Conversation[]) => void;
   setEvents: (events: Event[]) => void;
   addEvent: (event: Event) => void;
@@ -76,6 +81,15 @@ export const useMissionControl = create<MissionControlState>((set) => ({
     debug.store('setTasks called', { count: tasks.length });
     set({ tasks });
   },
+  taskGroups: [],
+  setTaskGroups: (groups) => set({ taskGroups: groups }),
+  addTaskGroup: (group) => set((state) => ({ taskGroups: [...state.taskGroups, group] })),
+  updateTaskGroup: (group) => set((state) => ({ 
+    taskGroups: state.taskGroups.map((g) => g.id === group.id ? group : g) 
+  })),
+  removeTaskGroup: (groupId) => set((state) => ({ 
+    taskGroups: state.taskGroups.filter((g) => g.id !== groupId) 
+  })),
   setConversations: (conversations) => set({ conversations }),
   setEvents: (events) => set({ events }),
   addEvent: (event) =>

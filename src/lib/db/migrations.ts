@@ -275,6 +275,63 @@ const migrations: Migration[] = [
       db.exec(`UPDATE openclaw_sessions SET session_type = 'persistent' WHERE session_type IS NULL OR session_type = ''`);
       console.log('[Migration 010] Normalized openclaw_sessions.session_type');
     }
+  },
+  {
+    id: '011',
+    name: 'add_task_groups_and_dependencies',
+    up: (db) => {
+      console.log('[Migration 011] Creating task_groups and task_dependencies tables...');
+
+      // Create task_groups table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_groups (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          shared_context TEXT,
+          shared_requirements TEXT,
+          shared_instructions TEXT,
+          assigned_agent_id TEXT,
+          color TEXT DEFAULT '#6366f1',
+          order_index INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+      console.log('[Migration 011] Created task_groups table');
+
+      // Create task_dependencies table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_dependencies (
+          id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL,
+          depends_on_task_id TEXT NOT NULL,
+          dependency_type TEXT DEFAULT 'blocks',
+          created_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(task_id, depends_on_task_id)
+        )
+      `);
+      console.log('[Migration 011] Created task_dependencies table');
+
+      // Add group_id, parent_id, order_index to tasks if not exists
+      const tasksInfo = db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[];
+      
+      if (!tasksInfo.some(col => col.name === 'group_id')) {
+        db.exec(`ALTER TABLE tasks ADD COLUMN group_id TEXT`);
+        console.log('[Migration 011] Added group_id to tasks');
+      }
+
+      if (!tasksInfo.some(col => col.name === 'parent_id')) {
+        db.exec(`ALTER TABLE tasks ADD COLUMN parent_id TEXT`);
+        console.log('[Migration 011] Added parent_id to tasks');
+      }
+
+      if (!tasksInfo.some(col => col.name === 'order_index')) {
+        db.exec(`ALTER TABLE tasks ADD COLUMN order_index INTEGER DEFAULT 0`);
+        console.log('[Migration 011] Added order_index to tasks');
+      }
+    }
   }
 ];
 

@@ -195,4 +195,35 @@ CREATE INDEX IF NOT EXISTS idx_activities_task ON task_activities(task_id, creat
 CREATE INDEX IF NOT EXISTS idx_deliverables_task ON task_deliverables(task_id);
 CREATE INDEX IF NOT EXISTS idx_openclaw_sessions_task ON openclaw_sessions(task_id);
 CREATE INDEX IF NOT EXISTS idx_planning_questions_task ON planning_questions(task_id, sort_order);
+
+-- Task Groups table
+CREATE TABLE IF NOT EXISTS task_groups (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+  name TEXT NOT NULL,
+  description TEXT,
+  shared_context TEXT,
+  shared_requirements TEXT,
+  shared_instructions TEXT,
+  assigned_agent_id TEXT REFERENCES agents(id),
+  color TEXT DEFAULT '#6366f1',
+  order_index INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Task Dependencies table
+CREATE TABLE IF NOT EXISTS task_dependencies (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  depends_on_task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  dependency_type TEXT DEFAULT 'blocks' CHECK (dependency_type IN ('blocks', 'blocked_by')),
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(task_id, depends_on_task_id)
+);
+
+-- Indexes for task groups and dependencies
+CREATE INDEX IF NOT EXISTS idx_tasks_group ON task_groups(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_dependencies_task ON task_dependencies(task_id);
+CREATE INDEX IF NOT EXISTS idx_dependencies_depends_on ON task_dependencies(depends_on_task_id);
 `;

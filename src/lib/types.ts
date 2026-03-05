@@ -74,6 +74,17 @@ export interface Task {
   due_date?: string;
   created_at: string;
   updated_at: string;
+  // Task Groups & Dependencies
+  group_id?: string;
+  parent_id?: string;
+  order_index?: number;
+  // Planning
+  planning_session_key?: string | null;
+  planning_messages?: string | null;
+  planning_complete?: number;
+  planning_spec?: string | null;
+  planning_agents?: string | null;
+  planning_dispatch_error?: string | null;
   // Joined fields
   assigned_agent?: Agent;
   created_by_agent?: Agent;
@@ -188,6 +199,31 @@ export interface TaskDeliverable {
   title: string;
   path?: string;
   description?: string;
+  created_at: string;
+}
+
+// Task Group
+export interface TaskGroup {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description?: string;
+  shared_context?: string;
+  shared_requirements?: string;
+  shared_instructions?: string;
+  assigned_agent_id?: string;
+  color: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Task Dependency
+export interface TaskDependency {
+  id: string;
+  task_id: string;
+  depends_on_task_id: string;
+  dependency_type: 'blocks' | 'blocked_by';
   created_at: string;
 }
 
