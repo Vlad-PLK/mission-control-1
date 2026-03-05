@@ -4,6 +4,7 @@ import { queryOne, queryAll, run } from '@/lib/db';
 import { getOpenClawClient } from '@/lib/openclaw/client';
 import { broadcast } from '@/lib/events';
 import { getProjectsPath, getMissionControlUrl } from '@/lib/config';
+import { buildDispatchPrompt, fetchDispatchContext } from '@/lib/prompt-templates';
 import type { Task, Agent, OpenClawSession } from '@/lib/types';
 
 interface BulkDispatchRequest {
@@ -71,57 +72,14 @@ async function dispatchSingleTask(task: Task & { assigned_agent_name?: string; w
     );
   }
 
-  const priorityEmoji = {
-    low: '🔵',
-    normal: '⚪',
-    high: '🟡',
-    urgent: '🔴'
-  }[task.priority] || '⚪';
+  // Build enhanced task message using prompt template builder
+  const dispatchContext = fetchDispatchContext(task.id);
+  
+  if (!dispatchContext) {
+    return { task_id: task.id, success: false, message: 'Failed to build task context', error: 'Context creation failed' };
+  }
 
-  const resolveTilde = (input: string): string => {
-    if (!input) return input;
-    if (!input.startsWith('~')) return input;
-    return input.replace(/^~/, process.env.HOME || process.env.USERPROFILE || '');
-  };
-
-  const codebaseDir = task.workspace_folder_path ? resolveTilde(task.workspace_folder_path.trim()) : null;
-  const projectsBaseDir = resolveTilde(getProjectsPath());
-  const projectDir = task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const taskWorkingDir = codebaseDir ? codebaseDir : `${projectsBaseDir}/${projectDir}`;
-  const missionControlUrl = getMissionControlUrl();
-
-  const workDirBlock = codebaseDir
-    ? `**CODEBASE_DIR:** ${codebaseDir}
-Work directly inside this directory. Do NOT create a new subfolder for this task.`
-    : `**OUTPUT DIRECTORY:** ${taskWorkingDir}
-Create this directory and save all deliverables there.`;
-
-  const deliverableExamplePath = codebaseDir
-    ? `${codebaseDir}/path/inside/repo.ext`
-    : `${taskWorkingDir}/filename.html`;
-
-  const taskMessage = `${priorityEmoji} **NEW TASK ASSIGNED**
-
-**Title:** ${task.title}
-${task.description ? `**Description:** ${task.description}\n` : ''}
-**Priority:** ${task.priority.toUpperCase()}
-${task.due_date ? `**Due:** ${task.due_date}\n` : ''}
-**Task ID:** ${task.id}
-
-${workDirBlock}
-
-**IMPORTANT:** After completing work, you MUST call these APIs:
-1. Log activity: POST ${missionControlUrl}/api/tasks/${task.id}/activities
-   Body: {"activity_type": "completed", "message": "Description of what was done"}
-2. Register deliverable: POST ${missionControlUrl}/api/tasks/${task.id}/deliverables
-   Body: {"deliverable_type": "file", "title": "File name", "path": "${deliverableExamplePath}"}
-3. Update status: PATCH ${missionControlUrl}/api/tasks/${task.id}
-   Body: {"status": "review"}
-
-When complete, reply with:
-\`TASK_COMPLETE: [brief summary of what you did]\`
-
-If you need help or clarification, ask the orchestrator.`;
+  const taskMessage = buildDispatchPrompt(dispatchContext);
 
   try {
     const sessionKey = `agent:main:${session.openclaw_session_id}`;
