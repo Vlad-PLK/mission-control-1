@@ -141,6 +141,41 @@ export async function PATCH(
       }
     }
 
+    // Handle group assignment
+    const existingAny = existing as unknown as Record<string, unknown>;
+    if (validatedData.group_id !== undefined && validatedData.group_id !== existingAny.group_id) {
+      updates.push('group_id = ?');
+      values.push(validatedData.group_id);
+    }
+
+    // Handle parent task (for hierarchical tasks)
+    if (validatedData.parent_id !== undefined && validatedData.parent_id !== existingAny.parent_id) {
+      updates.push('parent_id = ?');
+      values.push(validatedData.parent_id);
+    }
+
+    // Handle order index (for sorting)
+    if (validatedData.order_index !== undefined && validatedData.order_index !== existingAny.order_index) {
+      updates.push('order_index = ?');
+      values.push(validatedData.order_index);
+    }
+
+    // Handle override fields (for group context overrides)
+    if (validatedData.context_override !== undefined && validatedData.context_override !== existingAny.context_override) {
+      updates.push('context_override = ?');
+      values.push(validatedData.context_override);
+    }
+
+    if (validatedData.requirements_override !== undefined && validatedData.requirements_override !== existingAny.requirements_override) {
+      updates.push('requirements_override = ?');
+      values.push(validatedData.requirements_override);
+    }
+
+    if (validatedData.instructions_override !== undefined && validatedData.instructions_override !== existingAny.instructions_override) {
+      updates.push('instructions_override = ?');
+      values.push(validatedData.instructions_override);
+    }
+
     if (updates.length === 0) {
       return NextResponse.json({ error: 'No updates provided' }, { status: 400 });
     }

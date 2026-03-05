@@ -275,6 +275,85 @@ const migrations: Migration[] = [
       db.exec(`UPDATE openclaw_sessions SET session_type = 'persistent' WHERE session_type IS NULL OR session_type = ''`);
       console.log('[Migration 010] Normalized openclaw_sessions.session_type');
     }
+  },
+  {
+    id: '011',
+    name: 'add_task_groups_and_dependencies',
+    up: (db) => {
+      console.log('[Migration 011] Adding task_groups and task_dependencies tables...');
+
+      // Create task_groups table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_groups (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+          name TEXT NOT NULL,
+          description TEXT,
+          shared_context TEXT,
+          shared_requirements TEXT,
+          shared_instructions TEXT,
+          assigned_agent_id TEXT REFERENCES agents(id),
+          color TEXT DEFAULT '#6366f1',
+          order_index INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+
+      // Create index on workspace_id
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_group ON task_groups(workspace_id)`);
+
+      // Create task_dependencies table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_dependencies (
+          id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          depends_on_task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          dependency_type TEXT DEFAULT 'blocks' CHECK (dependency_type IN ('blocks', 'blocked_by')),
+          created_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(task_id, depends_on_task_id)
+        )
+      `);
+
+      // Create indexes
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_dependencies_task ON task_dependencies(task_id)`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_dependencies_depends_on ON task_dependencies(depends_on_task_id)`);
+
+      // Add new columns to tasks table
+      const tasksInfo = db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[];
+
+      if (!tasksInfo.some(col => col.name === 'group_id')) {
+        db.exec(`ALTER TABLE tasks ADD COLUMN group_id TEXT`);
+        console.log('[Migration 011] Added group_id to tasks');
+      }
+
+      if (!tasksInfo.some(col => col.name === 'parent_id')) {
+        db.exec(`ALTER TABLE tasks ADD COLUMN parent_id TEXT`);
+        console.log('[Migration 011] Added parent_id to tasks');
+      }
+
+      if (!tasksInfo.some(col => col.name === 'order_index')) {
+        db.exec(`ALTER TABLE tasks ADD COLUMN order_index INTEGER DEFAULT 0`);
+        console.log('[Migration 011] Added order_index to tasks');
+      }
+
+      if (!tasksInfo.some(col => col.name === 'context_override')) {
+        db.exec(`ALTER TABLE tasks ADD COLUMN context_override TEXT`);
+        console.log('[Migration 011] Added context_override to tasks');
+      }
+
+      if (!tasksInfo.some(col => col.name === 'requirements_override')) {
+        db.exec(`ALTER TABLE tasks ADD COLUMN requirements_override TEXT`);
+        console.log('[Migration 011] Added requirements_override to tasks');
+      }
+
+      if (!tasksInfo.some(col => col.name === 'instructions_override')) {
+        db.exec(`ALTER TABLE tasks ADD COLUMN instructions_override TEXT`);
+        console.log('[Migration 011] Added instructions_override to tasks');
+      }
+
+      console.log('[Migration 011] task_groups and task_dependencies created');
+    }
   }
 ];
 
