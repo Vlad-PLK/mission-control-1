@@ -55,17 +55,49 @@ export async function GET(request: NextRequest) {
 
     const tasks = queryAll<Task & { assigned_agent_name?: string; assigned_agent_emoji?: string; created_by_agent_name?: string }>(sql, params);
 
-    // Transform to include nested agent info
-    const transformedTasks = tasks.map((task) => ({
-      ...task,
-      assigned_agent: task.assigned_agent_id
-        ? {
-            id: task.assigned_agent_id,
-            name: task.assigned_agent_name,
-            avatar_emoji: task.assigned_agent_emoji,
-          }
-        : undefined,
-    }));
+    // Get blocking info for all tasks
+    const taskIds = tasks.map(t => t.id);
+    const blockingInfo: Record<string, Array<{ taskId: string; taskTitle: string; status: string }>> = {};
+    
+    if (taskIds.length > 0) {
+      const placeholders = taskIds.map(() => '?').join(',');
+      const blockingDeps = queryAll<{ id: string; title: string; status: string; task_id: string }>(`
+        SELECT t.id, t.title, t.status, td.task_id
+        FROM tasks t
+        JOIN task_dependencies td ON td.depends_on_task_id = t.id
+        WHERE td.task_id IN (${placeholders})
+          AND td.dependency_type = 'blocks'
+          AND t.status NOT IN ('done', 'testing', 'review')
+      `, taskIds);
+      
+      for (const dep of blockingDeps) {
+        if (!blockingInfo[dep.task_id]) {
+          blockingInfo[dep.task_id] = [];
+        }
+        blockingInfo[dep.task_id].push({
+          taskId: dep.id,
+          taskTitle: dep.title,
+          status: dep.status
+        });
+      }
+    }
+
+    // Transform to include nested agent info and blocking status
+    const transformedTasks = tasks.map((task) => {
+      const blockers = blockingInfo[task.id] || [];
+      return {
+        ...task,
+        assigned_agent: task.assigned_agent_id
+          ? {
+              id: task.assigned_agent_id,
+              name: task.assigned_agent_name,
+              avatar_emoji: task.assigned_agent_emoji,
+            }
+          : undefined,
+        is_blocked: blockers.length > 0,
+        blocking_tasks: blockers,
+      };
+    });
 
     return NextResponse.json(transformedTasks);
   } catch (error) {
@@ -98,8 +130,8 @@ export async function POST(request: NextRequest) {
     const status = validatedData.status || 'inbox';
     
     run(
-      `INSERT INTO tasks (id, title, description, status, priority, assigned_agent_id, created_by_agent_id, workspace_id, business_id, due_date, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tasks (id, title, description, status, priority, assigned_agent_id, created_by_agent_id, workspace_id, business_id, due_date, group_id, parent_id, order_index, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         validatedData.title,
@@ -111,6 +143,9 @@ export async function POST(request: NextRequest) {
         workspaceId,
         validatedData.business_id || 'default',
         validatedData.due_date || null,
+        validatedData.group_id || null,
+        validatedData.parent_id || null,
+        validatedData.order_index || 0,
         now,
         now,
       ]

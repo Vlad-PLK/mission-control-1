@@ -34,6 +34,9 @@ export const CreateTaskSchema = z.object({
   business_id: z.string().optional(),
   workspace_id: z.string().optional(),
   due_date: z.string().optional().nullable(),
+  group_id: z.string().uuid().optional().nullable(),
+  parent_id: z.string().uuid().optional().nullable(),
+  order_index: z.number().int().min(0).optional(),
 });
 
 export const UpdateTaskSchema = z.object({

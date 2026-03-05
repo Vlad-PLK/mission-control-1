@@ -156,7 +156,11 @@ CREATE TABLE IF NOT EXISTS openclaw_sessions (
   task_id TEXT REFERENCES tasks(id),
   ended_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
+  updated_at TEXT DEFAULT (datetime('now')),
+  input_tokens INTEGER DEFAULT 0,
+  output_tokens INTEGER DEFAULT 0,
+  total_tokens INTEGER DEFAULT 0,
+  last_token_update TEXT
 );
 
 -- Task activities table (for real-time activity log)

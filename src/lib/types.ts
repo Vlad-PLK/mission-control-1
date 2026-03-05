@@ -88,6 +88,9 @@ export interface Task {
   // Joined fields
   assigned_agent?: Agent;
   created_by_agent?: Agent;
+  // Runtime fields (not in DB)
+  is_blocked?: boolean;
+  blocking_tasks?: Array<{ taskId: string; taskTitle: string; status: string }>;
 }
 
 export interface Conversation {
@@ -299,10 +302,15 @@ export interface CreateTaskRequest {
   title: string;
   description?: string;
   priority?: TaskPriority;
+  status?: TaskStatus;
   assigned_agent_id?: string;
   created_by_agent_id?: string;
+  workspace_id?: string;
   business_id?: string;
   due_date?: string;
+  group_id?: string;
+  parent_id?: string;
+  order_index?: number;
 }
 
 export interface UpdateTaskRequest extends Partial<CreateTaskRequest> {

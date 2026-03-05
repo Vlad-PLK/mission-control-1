@@ -1,15 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Save, Trash2, Folder, Palette } from 'lucide-react';
-import type { TaskGroup } from '@/lib/types';
+import { X, Save, Trash2, Folder, Palette, Rocket } from 'lucide-react';
+import type { TaskGroup, Task } from '@/lib/types';
 
 interface TaskGroupModalProps {
   group?: TaskGroup;
   workspaceId: string;
+  tasks?: Task[];
   onClose: () => void;
   onSave: (group: Partial<TaskGroup>) => Promise<void>;
   onDelete?: () => Promise<void>;
+  onDispatch?: (groupId: string) => Promise<void>;
 }
 
 const COLOR_OPTIONS = [
@@ -25,8 +27,9 @@ const COLOR_OPTIONS = [
   { value: '#6b7280', label: 'Gray' },
 ];
 
-export function TaskGroupModal({ group, workspaceId, onClose, onSave, onDelete }: TaskGroupModalProps) {
+export function TaskGroupModal({ group, workspaceId, tasks = [], onClose, onSave, onDelete, onDispatch }: TaskGroupModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDispatching, setIsDispatching] = useState(false);
   const [form, setForm] = useState({
     name: group?.name || '',
     description: group?.description || '',
@@ -67,6 +70,34 @@ export function TaskGroupModal({ group, workspaceId, onClose, onSave, onDelete }
       console.error('Failed to delete group:', error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDispatch = async () => {
+    if (!group || !onDispatch) return;
+    
+    const dispatchableTasks = tasks.filter(t => 
+      t.group_id === group.id && 
+      t.assigned_agent_id && 
+      !['done', 'in_progress', 'planning'].includes(t.status)
+    );
+    
+    if (dispatchableTasks.length === 0) {
+      alert('No tasks in this group are ready for dispatch (must have assigned agent and not be done/in_progress/planning)');
+      return;
+    }
+    
+    if (!confirm(`Dispatch ${dispatchableTasks.length} task(s) in this group to their assigned agents?`)) {
+      return;
+    }
+    
+    setIsDispatching(true);
+    try {
+      await onDispatch(group.id);
+    } catch (error) {
+      console.error('Failed to dispatch group:', error);
+    } finally {
+      setIsDispatching(false);
     }
   };
 
@@ -169,7 +200,7 @@ export function TaskGroupModal({ group, workspaceId, onClose, onSave, onDelete }
 
           {/* Actions */}
           <div className="flex justify-between pt-4 border-t border-mc-border">
-            <div>
+            <div className="flex gap-2">
               {group && onDelete && (
                 <button
                   type="button"
@@ -179,6 +210,17 @@ export function TaskGroupModal({ group, workspaceId, onClose, onSave, onDelete }
                 >
                   <Trash2 className="w-4 h-4" />
                   Delete
+                </button>
+              )}
+              {group && onDispatch && (
+                <button
+                  type="button"
+                  onClick={handleDispatch}
+                  disabled={isDispatching}
+                  className="px-4 py-2 bg-mc-accent-green hover:bg-mc-accent-green/80 rounded text-white flex items-center gap-2"
+                >
+                  <Rocket className="w-4 h-4" />
+                  {isDispatching ? 'Dispatching...' : 'Dispatch All'}
                 </button>
               )}
             </div>

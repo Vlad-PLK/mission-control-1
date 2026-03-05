@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] - 2026-03-05
+
+### Fixed
+
+- **Planning Approve Route** — Fixed missing `planning_complete = 1` flag when manually approving a planning spec. Tasks now correctly transition to inbox with planning marked complete.
+- **Dispatch Idempotency** — Added check to prevent duplicate dispatch activity logs when re-dispatching the same task within 5 minutes.
+- **Session History API** — Fixed broken history endpoint. Now uses `chat.history` instead of non-existent `sessions.history` method.
+- **Planning Timeout Configuration** — Fixed typo in `PLANNING_TIMEOUT_MS` env var and increased default from 30s to 2 minutes.
+
+### Added
+
+- **Token Tracking** — Added `input_tokens`, `output_tokens`, `total_tokens`, and `last_token_update` columns to `openclaw_sessions` table with automatic migration.
+- **Health Check Endpoint** — New `GET /api/health` endpoint returns system status including database and Gateway connectivity.
+- **SSE for Planning Updates** — New `GET /api/tasks/[id]/planning/stream` endpoint provides real-time Server-Sent Events for planning progress (replaces polling).
+- **Token Sync Script** — New `scripts/sync-tokens.ts` script for periodically fetching token usage from Gateway (for cron jobs).
+
+---
+
 ## [1.2.0] - 2026-02-19
 
 ### Added

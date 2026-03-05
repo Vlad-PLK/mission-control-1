@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, ChevronRight, GripVertical, Folder, FolderPlus } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, ChevronRight, GripVertical, Folder, FolderPlus, Lock, Rocket, ChevronDown } from 'lucide-react';
 import { useMissionControl } from '@/lib/store';
 import { triggerAutoDispatch, shouldTriggerAutoDispatch } from '@/lib/auto-dispatch';
 import type { Task, TaskStatus, TaskGroup } from '@/lib/types';
@@ -30,6 +30,9 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
   const [editingGroup, setEditingGroup] = useState<TaskGroup | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [showGroupDropdown, setShowGroupDropdown] = useState(false);
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Load task groups on mount
   useEffect(() => {
@@ -47,6 +50,22 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
     };
     loadTaskGroups();
   }, [workspaceId, setTaskGroups]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowGroupDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter tasks by selected group
+  const filteredTasks = selectedGroupFilter
+    ? tasks.filter(t => t.group_id === selectedGroupFilter)
+    : tasks;
 
   const handleSaveGroup = async (groupData: Partial<TaskGroup>) => {
     try {
@@ -90,8 +109,36 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
     }
   };
 
+  const handleBulkDispatch = async (groupId: string) => {
+    try {
+      const res = await fetch('/api/tasks/dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group_id: groupId }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Dispatched ${data.success_count} task(s)${data.fail_count > 0 ? `, ${data.fail_count} failed` : ''}`);
+        // Refresh tasks to show updated status
+        const tasksRes = await fetch('/api/tasks');
+        if (tasksRes.ok) {
+          const updatedTasks = await tasksRes.json();
+          const { setTasks } = useMissionControl.getState();
+          setTasks(updatedTasks);
+        }
+      } else {
+        const error = await res.json();
+        alert(`Dispatch failed: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to bulk dispatch:', error);
+      alert('Failed to dispatch tasks');
+    }
+  };
+
   const getTasksByStatus = (status: TaskStatus) =>
-    tasks.filter((task) => task.status === status);
+    filteredTasks.filter((task) => task.status === status);
 
   const handleDragStart = (e: React.DragEvent, task: Task) => {
     setDraggedTask(task);
@@ -108,6 +155,25 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
     if (!draggedTask || draggedTask.status === targetStatus) {
       setDraggedTask(null);
       return;
+    }
+
+    // Check if task is blocked by dependencies before allowing move to certain statuses
+    const statusesRequiringCheck = ['in_progress', 'assigned', 'testing', 'review'];
+    if (statusesRequiringCheck.includes(targetStatus)) {
+      try {
+        const checkRes = await fetch(`/api/tasks/${draggedTask.id}/dependencies/blockers`);
+        if (checkRes.ok) {
+          const data = await checkRes.json();
+          if (data.is_blocked) {
+            const blockerNames = data.blockers.map((b: { taskTitle: string }) => b.taskTitle).join(', ');
+            alert(`Cannot move to ${targetStatus}: Blocked by incomplete task(s): ${blockerNames}`);
+            setDraggedTask(null);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check blockers:', err);
+      }
     }
 
     // Optimistic update
@@ -163,10 +229,89 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
         <div className="flex items-center gap-2">
           <ChevronRight className="w-4 h-4 text-mc-text-secondary" />
           <span className="text-sm font-medium uppercase tracking-wider">Mission Queue</span>
+          
+          {/* Group Filter Dropdown */}
           {taskGroups.length > 0 && (
-            <span className="text-xs text-mc-text-secondary bg-mc-bg-tertiary px-2 py-0.5 rounded">
-              {taskGroups.length} group{taskGroups.length !== 1 ? 's' : ''}
-            </span>
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setShowGroupDropdown(!showGroupDropdown)}
+                className="flex items-center gap-1.5 px-2 py-1 border border-mc-border rounded text-xs hover:bg-mc-bg-tertiary"
+              >
+                <Folder className="w-3 h-3" />
+                {selectedGroupFilter 
+                  ? taskGroups.find(g => g.id === selectedGroupFilter)?.name || 'All'
+                  : 'All Groups'}
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              
+              {showGroupDropdown && (
+                <div className="absolute top-full left-0 mt-1 w-56 bg-mc-bg border border-mc-border rounded-lg shadow-lg z-50">
+                  <button
+                    onClick={() => {
+                      setSelectedGroupFilter(null);
+                      setShowGroupDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs hover:bg-mc-bg-tertiary ${
+                      !selectedGroupFilter ? 'bg-mc-accent/10 text-mc-accent' : ''
+                    }`}
+                  >
+                    All Groups ({tasks.length})
+                  </button>
+                  {taskGroups.map(group => {
+                    const groupTaskCount = tasks.filter(t => t.group_id === group.id).length;
+                    const dispatchableCount = tasks.filter(t => 
+                      t.group_id === group.id && 
+                      t.assigned_agent_id && 
+                      !['done', 'in_progress', 'planning'].includes(t.status)
+                    ).length;
+                    return (
+                      <div key={group.id} className="border-t border-mc-border/50">
+                        <button
+                          onClick={() => {
+                            setSelectedGroupFilter(group.id);
+                            setShowGroupDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-mc-bg-tertiary flex items-center justify-between ${
+                            selectedGroupFilter === group.id ? 'bg-mc-accent/10 text-mc-accent' : ''
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />
+                            {group.name}
+                          </span>
+                          <span className="text-mc-text-secondary">{groupTaskCount}</span>
+                        </button>
+                        {dispatchableCount > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleBulkDispatch(group.id);
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-mc-accent-green hover:bg-mc-accent-green/10 flex items-center gap-1"
+                          >
+                            <Rocket className="w-3 h-3" />
+                            Dispatch All ({dispatchableCount})
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div className="border-t border-mc-border/50">
+                    <button
+                      onClick={() => {
+                        setEditingGroup(null);
+                        setShowGroupModal(true);
+                        setShowGroupDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-mc-bg-tertiary flex items-center gap-2 text-mc-accent"
+                    >
+                      <FolderPlus className="w-3 h-3" />
+                      Manage Groups
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -240,12 +385,14 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
         <TaskGroupModal
           group={editingGroup || undefined}
           workspaceId={workspaceId || 'default'}
+          tasks={tasks}
           onClose={() => {
             setShowGroupModal(false);
             setEditingGroup(null);
           }}
           onSave={handleSaveGroup}
           onDelete={editingGroup ? handleDeleteGroup : undefined}
+          onDispatch={editingGroup ? handleBulkDispatch : undefined}
         />
       )}
     </div>
@@ -321,6 +468,21 @@ function TaskCard({ task, onDragStart, onClick, isDragging }: TaskCardProps) {
           <div className="flex items-center gap-2 mb-3 py-2 px-3 bg-purple-500/10 rounded-md border border-purple-500/20">
             <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse flex-shrink-0" />
             <span className="text-xs text-purple-400 font-medium">Continue planning</span>
+          </div>
+        )}
+
+        {/* Blocked indicator */}
+        {task.is_blocked && (
+          <div className="flex items-center gap-2 mb-3 py-2 px-3 bg-mc-accent-red/10 rounded-md border border-mc-accent-red/20">
+            <Lock className="w-3 h-3 text-mc-accent-red flex-shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-xs text-mc-accent-red font-medium">Blocked</span>
+              {task.blocking_tasks && task.blocking_tasks.length > 0 && (
+                <span className="text-[10px] text-mc-accent-red/70 truncate">
+                  by: {task.blocking_tasks.map(b => b.taskTitle).join(', ')}
+                </span>
+              )}
+            </div>
           </div>
         )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { X, Save, Trash2, Activity, Package, Bot, ClipboardList, Plus } from 'lucide-react';
 import { useMissionControl } from '@/lib/store';
 import { triggerAutoDispatch, shouldTriggerAutoDispatch } from '@/lib/auto-dispatch';
@@ -20,12 +20,27 @@ interface TaskModalProps {
 }
 
 export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
-  const { agents, addTask, updateTask, addEvent } = useMissionControl();
+  const { agents, addTask, updateTask, addEvent, taskGroups, setTaskGroups } = useMissionControl();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [usePlanningMode, setUsePlanningMode] = useState(false);
   // Auto-switch to planning tab if task is in planning status
   const [activeTab, setActiveTab] = useState<TabType>(task?.status === 'planning' ? 'planning' : 'overview');
+
+  // Load task groups if not loaded
+  useEffect(() => {
+    const loadGroups = async () => {
+      if (taskGroups.length === 0) {
+        const wsId = workspaceId || task?.workspace_id || 'default';
+        const res = await fetch(`/api/task-groups?workspace_id=${wsId}`);
+        if (res.ok) {
+          const groups = await res.json();
+          setTaskGroups(groups);
+        }
+      }
+    };
+    loadGroups();
+  }, [workspaceId, task?.workspace_id, taskGroups.length, setTaskGroups]);
 
   // Stable callback for when spec is locked - use window.location.reload() to refresh data
   const handleSpecLocked = useCallback(() => {
@@ -315,7 +330,7 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
               className="w-full bg-mc-bg border border-mc-border rounded px-3 py-2 text-sm focus:outline-none focus:border-mc-accent"
             >
               <option value="">No Group</option>
-              {useMissionControl.getState().taskGroups
+              {taskGroups
                 .filter((g) => g.workspace_id === (workspaceId || task?.workspace_id || 'default'))
                 .map((group) => (
                   <option key={group.id} value={group.id}>

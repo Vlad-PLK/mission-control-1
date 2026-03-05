@@ -332,6 +332,35 @@ const migrations: Migration[] = [
         console.log('[Migration 011] Added order_index to tasks');
       }
     }
+  },
+  {
+    id: '012',
+    name: 'add_token_tracking',
+    up: (db) => {
+      console.log('[Migration 012] Adding token tracking columns to openclaw_sessions...');
+
+      const cols = db.prepare("PRAGMA table_info(openclaw_sessions)").all() as { name: string }[];
+
+      if (!cols.some(c => c.name === 'input_tokens')) {
+        db.exec(`ALTER TABLE openclaw_sessions ADD COLUMN input_tokens INTEGER DEFAULT 0`);
+        console.log('[Migration 012] Added input_tokens column');
+      }
+
+      if (!cols.some(c => c.name === 'output_tokens')) {
+        db.exec(`ALTER TABLE openclaw_sessions ADD COLUMN output_tokens INTEGER DEFAULT 0`);
+        console.log('[Migration 012] Added output_tokens column');
+      }
+
+      if (!cols.some(c => c.name === 'total_tokens')) {
+        db.exec(`ALTER TABLE openclaw_sessions ADD COLUMN total_tokens INTEGER DEFAULT 0`);
+        console.log('[Migration 012] Added total_tokens column');
+      }
+
+      if (!cols.some(c => c.name === 'last_token_update')) {
+        db.exec(`ALTER TABLE openclaw_sessions ADD COLUMN last_token_update TEXT`);
+        console.log('[Migration 012] Added last_token_update column');
+      }
+    }
   }
 ];
 

@@ -96,12 +96,37 @@ export async function PATCH(
       updates.push('due_date = ?');
       values.push(validatedData.due_date);
     }
+    if (validatedData.group_id !== undefined) {
+      updates.push('group_id = ?');
+      values.push(validatedData.group_id);
+    }
+    if (validatedData.parent_id !== undefined) {
+      updates.push('parent_id = ?');
+      values.push(validatedData.parent_id);
+    }
+    if (validatedData.order_index !== undefined) {
+      updates.push('order_index = ?');
+      values.push(validatedData.order_index);
+    }
 
     // Track if we need to dispatch task
     let shouldDispatch = false;
 
     // Handle status change
     if (validatedData.status !== undefined && validatedData.status !== existing.status) {
+      // Check if task is blocked by incomplete dependencies before allowing move to in_progress/assigned/testing/review
+      const statusesRequiringCheck = ['in_progress', 'assigned', 'testing', 'review'];
+      if (statusesRequiringCheck.includes(validatedData.status)) {
+        const { canMoveTask } = await import('@/lib/dependency-automation');
+        const moveCheck = canMoveTask(id, validatedData.status);
+        if (!moveCheck.canMove) {
+          return NextResponse.json(
+            { error: moveCheck.reason },
+            { status: 409 }
+          );
+        }
+      }
+
       updates.push('status = ?');
       values.push(validatedData.status);
 
@@ -191,6 +216,13 @@ export async function PATCH(
       cleanupTaskSessions(id, { deleteTranscript: true }).catch((err) => {
         console.error('Task session cleanup failed:', err);
       });
+
+      // Auto-unblock dependent tasks when this task is completed
+      const { autoUnblockDependentTasks } = await import('@/lib/dependency-automation');
+      const unblockResult = autoUnblockDependentTasks(id);
+      if (unblockResult.unblockedTasks.length > 0) {
+        console.log(`[Task Update] Auto-unblocked ${unblockResult.unblockedTasks.length} dependent task(s)`);
+      }
     }
 
     return NextResponse.json(task);

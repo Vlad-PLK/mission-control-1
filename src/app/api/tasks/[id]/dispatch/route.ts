@@ -245,12 +245,24 @@ If you need help or clarification, ask the orchestrator.`;
       );
 
       // Log dispatch activity to task_activities table (for Activity tab)
-      const activityId = crypto.randomUUID();
-      run(
-        `INSERT INTO task_activities (id, task_id, agent_id, activity_type, message, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [activityId, task.id, agent.id, 'status_changed', `Task dispatched to ${agent.name} - Agent is now working on this task`, now]
+      // Check for recent duplicate dispatch activity (idempotency)
+      const recentDispatch = queryOne<{ id: string }>(
+        `SELECT id FROM task_activities 
+         WHERE task_id = ? 
+           AND activity_type = 'status_changed'
+           AND message LIKE 'Task dispatched%'
+           AND created_at > datetime('now', '-5 minutes')`,
+        [task.id]
       );
+
+      if (!recentDispatch) {
+        const activityId = crypto.randomUUID();
+        run(
+          `INSERT INTO task_activities (id, task_id, agent_id, activity_type, message, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [activityId, task.id, agent.id, 'status_changed', `Task dispatched to ${agent.name} - Agent is now working on this task`, now]
+        );
+      }
 
       return NextResponse.json({
         success: true,
