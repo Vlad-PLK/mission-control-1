@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, ChevronRight, GripVertical } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, ChevronRight, GripVertical, Folder, FolderPlus } from 'lucide-react';
 import { useMissionControl } from '@/lib/store';
 import { triggerAutoDispatch, shouldTriggerAutoDispatch } from '@/lib/auto-dispatch';
-import type { Task, TaskStatus } from '@/lib/types';
+import type { Task, TaskStatus, TaskGroup } from '@/lib/types';
 import { TaskModal } from './TaskModal';
+import { TaskGroupModal } from './TaskGroupModal';
 import { formatDistanceToNow } from 'date-fns';
 
 interface MissionQueueProps {
@@ -23,10 +24,71 @@ const COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
 ];
 
 export function MissionQueue({ workspaceId }: MissionQueueProps) {
-  const { tasks, updateTaskStatus, addEvent } = useMissionControl();
+  const { tasks, updateTaskStatus, addEvent, taskGroups, setTaskGroups, addTaskGroup, updateTaskGroup, removeTaskGroup } = useMissionControl();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<TaskGroup | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+
+  // Load task groups on mount
+  useEffect(() => {
+    const loadTaskGroups = async () => {
+      try {
+        const workspaceFilter = workspaceId ? `?workspace_id=${workspaceId}` : '';
+        const res = await fetch(`/api/task-groups${workspaceFilter}`);
+        if (res.ok) {
+          const groups = await res.json();
+          setTaskGroups(groups);
+        }
+      } catch (error) {
+        console.error('Failed to load task groups:', error);
+      }
+    };
+    loadTaskGroups();
+  }, [workspaceId, setTaskGroups]);
+
+  const handleSaveGroup = async (groupData: Partial<TaskGroup>) => {
+    try {
+      if (editingGroup) {
+        const res = await fetch(`/api/task-groups/${editingGroup.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(groupData),
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          updateTaskGroup(updated);
+        }
+      } else {
+        const res = await fetch('/api/task-groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(groupData),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          addTaskGroup(created);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save group:', error);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!editingGroup) return;
+    try {
+      const res = await fetch(`/api/task-groups/${editingGroup.id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        removeTaskGroup(editingGroup.id);
+      }
+    } catch (error) {
+      console.error('Failed to delete group:', error);
+    }
+  };
 
   const getTasksByStatus = (status: TaskStatus) =>
     tasks.filter((task) => task.status === status);
@@ -101,14 +163,32 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
         <div className="flex items-center gap-2">
           <ChevronRight className="w-4 h-4 text-mc-text-secondary" />
           <span className="text-sm font-medium uppercase tracking-wider">Mission Queue</span>
+          {taskGroups.length > 0 && (
+            <span className="text-xs text-mc-text-secondary bg-mc-bg-tertiary px-2 py-0.5 rounded">
+              {taskGroups.length} group{taskGroups.length !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-mc-accent-pink text-mc-bg rounded text-sm font-medium hover:bg-mc-accent-pink/90"
-        >
-          <Plus className="w-4 h-4" />
-          New Task
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setEditingGroup(null);
+              setShowGroupModal(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-mc-border rounded text-sm hover:bg-mc-bg-tertiary"
+            title="Manage Task Groups"
+          >
+            <Folder className="w-4 h-4" />
+            Groups
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-mc-accent-pink text-mc-bg rounded text-sm font-medium hover:bg-mc-accent-pink/90"
+          >
+            <Plus className="w-4 h-4" />
+            New Task
+          </button>
+        </div>
       </div>
 
       {/* Kanban Columns */}
@@ -156,6 +236,18 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
       {editingTask && (
         <TaskModal task={editingTask} onClose={() => setEditingTask(null)} workspaceId={workspaceId} />
       )}
+      {showGroupModal && (
+        <TaskGroupModal
+          group={editingGroup || undefined}
+          workspaceId={workspaceId || 'default'}
+          onClose={() => {
+            setShowGroupModal(false);
+            setEditingGroup(null);
+          }}
+          onSave={handleSaveGroup}
+          onDelete={editingGroup ? handleDeleteGroup : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -168,6 +260,7 @@ interface TaskCardProps {
 }
 
 function TaskCard({ task, onDragStart, onClick, isDragging }: TaskCardProps) {
+  const { taskGroups } = useMissionControl();
   const priorityStyles = {
     low: 'text-mc-text-secondary',
     normal: 'text-mc-accent',
@@ -183,6 +276,9 @@ function TaskCard({ task, onDragStart, onClick, isDragging }: TaskCardProps) {
   };
 
   const isPlanning = task.status === 'planning';
+  
+  // Get the task's group
+  const taskGroup = task.group_id ? taskGroups.find(g => g.id === task.group_id) : undefined;
 
   return (
     <div
@@ -204,6 +300,21 @@ function TaskCard({ task, onDragStart, onClick, isDragging }: TaskCardProps) {
         <h4 className="text-sm font-medium leading-snug line-clamp-2 mb-3">
           {task.title}
         </h4>
+
+        {/* Task Group Badge */}
+        {taskGroup && (
+          <div 
+            className="flex items-center gap-1.5 mb-3 py-1 px-2 rounded text-xs font-medium"
+            style={{ 
+              backgroundColor: `${taskGroup.color}20`,
+              color: taskGroup.color,
+              border: `1px solid ${taskGroup.color}40`
+            }}
+          >
+            <Folder className="w-3 h-3" />
+            {taskGroup.name}
+          </div>
+        )}
         
         {/* Planning mode indicator */}
         {isPlanning && (
