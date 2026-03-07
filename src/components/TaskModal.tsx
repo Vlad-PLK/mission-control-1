@@ -153,43 +153,43 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-mc-bg-secondary border border-mc-border rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-mc-bg-secondary border border-mc-border rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col modal-content">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-mc-border flex-shrink-0">
-          <h2 className="text-lg font-semibold">
+        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-mc-border flex-shrink-0">
+          <h2 className="text-base sm:text-lg font-semibold truncate pr-2">
             {task ? task.title : 'Create New Task'}
           </h2>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-mc-bg-tertiary rounded"
+            className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-mc-bg-tertiary rounded"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tabs - only show for existing tasks */}
+        {/* Tabs - only show for existing tasks - horizontal scroll on mobile */}
         {task && (
-          <div className="flex border-b border-mc-border flex-shrink-0">
+          <div className="flex border-b border-mc-border flex-shrink-0 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-h-[44px] ${
                   activeTab === tab.id
                     ? 'text-mc-accent border-b-2 border-mc-accent'
                     : 'text-mc-text-secondary hover:text-mc-text'
                 }`}
               >
                 {tab.icon}
-                {tab.label}
+                <span className="hidden xs:inline">{tab.label}</span>
               </button>
             ))}
           </div>
         )}
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <form onSubmit={handleSubmit} className="space-y-4">

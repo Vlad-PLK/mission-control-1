@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Inbox, Users, Activity } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { AgentsSidebar } from '@/components/AgentsSidebar';
 import { MissionQueue } from '@/components/MissionQueue';
@@ -13,6 +13,8 @@ import { useMissionControl } from '@/lib/store';
 import { useSSE } from '@/hooks/useSSE';
 import { debug } from '@/lib/debug';
 import type { Task, Workspace } from '@/lib/types';
+
+type MobileTab = 'tasks' | 'agents' | 'feed';
 
 export default function WorkspacePage() {
   const params = useParams();
@@ -29,6 +31,8 @@ export default function WorkspacePage() {
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [mobileTab, setMobileTab] = useState<MobileTab>('tasks');
+  const [showMobilePanels, setShowMobilePanels] = useState(false);
 
   // Connect to SSE for real-time updates
   useSSE();
@@ -205,14 +209,68 @@ export default function WorkspacePage() {
       <Header workspace={workspace} />
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Agents Sidebar */}
-        <AgentsSidebar workspaceId={workspace.id} />
+        {/* Desktop Layout: 3 columns */}
+        <div className="hidden lg:flex flex-1 overflow-hidden">
+          {/* Agents Sidebar */}
+          <AgentsSidebar workspaceId={workspace.id} />
 
-        {/* Main Content Area */}
-        <MissionQueue workspaceId={workspace.id} />
+          {/* Main Content Area */}
+          <MissionQueue workspaceId={workspace.id} />
 
-        {/* Live Feed */}
-        <LiveFeed />
+          {/* Live Feed */}
+          <LiveFeed />
+        </div>
+
+        {/* Mobile/Tablet Layout: Tab-based navigation */}
+        <div className="lg:hidden flex flex-col flex-1 overflow-hidden">
+          {/* Tab Content */}
+          <div className="flex-1 overflow-hidden">
+            {mobileTab === 'tasks' && <MissionQueue workspaceId={workspace.id} />}
+            {mobileTab === 'agents' && (
+              <div className="h-full overflow-y-auto">
+                <AgentsSidebar workspaceId={workspace.id} />
+              </div>
+            )}
+            {mobileTab === 'feed' && <LiveFeed />}
+          </div>
+
+          {/* Mobile Tab Bar */}
+          <div className="border-t border-mc-border bg-mc-bg-secondary flex justify-around py-2 safe-area-pb">
+            <button
+              onClick={() => setMobileTab('tasks')}
+              className={`flex flex-col items-center gap-1 px-4 py-2 min-h-[44px] min-w-[44px] rounded-lg transition-colors ${
+                mobileTab === 'tasks' 
+                  ? 'text-mc-accent bg-mc-accent/10' 
+                  : 'text-mc-text-secondary'
+              }`}
+            >
+              <Inbox className="w-5 h-5" />
+              <span className="text-xs">Tasks</span>
+            </button>
+            <button
+              onClick={() => setMobileTab('agents')}
+              className={`flex flex-col items-center gap-1 px-4 py-2 min-h-[44px] min-w-[44px] rounded-lg transition-colors ${
+                mobileTab === 'agents' 
+                  ? 'text-mc-accent-purple bg-mc-accent-purple/10' 
+                  : 'text-mc-text-secondary'
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span className="text-xs">Agents</span>
+            </button>
+            <button
+              onClick={() => setMobileTab('feed')}
+              className={`flex flex-col items-center gap-1 px-4 py-2 min-h-[44px] min-w-[44px] rounded-lg transition-colors ${
+                mobileTab === 'feed' 
+                  ? 'text-mc-accent-green bg-mc-accent-green/10' 
+                  : 'text-mc-text-secondary'
+              }`}
+            >
+              <Activity className="w-5 h-5" />
+              <span className="text-xs">Feed</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Debug Panel - only shows when debug mode enabled */}

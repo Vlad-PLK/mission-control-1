@@ -69,15 +69,15 @@ export function LiveFeed() {
   return (
     <aside
       className={`bg-mc-bg-secondary border-l border-mc-border flex flex-col transition-all duration-300 ease-in-out ${
-        isMinimized ? 'w-12' : 'w-80'
+        isMinimized ? 'w-12' : 'w-64 lg:w-80'
       }`}
     >
       {/* Header */}
-      <div className="p-3 border-b border-mc-border">
+      <div className="p-2 lg:p-3 border-b border-mc-border">
         <div className="flex items-center">
           <button
             onClick={toggleMinimize}
-            className="p-1 rounded hover:bg-mc-bg-tertiary text-mc-text-secondary hover:text-mc-text transition-colors"
+            className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-mc-bg-tertiary text-mc-text-secondary hover:text-mc-text transition-colors"
             aria-label={isMinimized ? 'Expand feed' : 'Minimize feed'}
           >
             {isMinimized ? (
@@ -93,12 +93,12 @@ export function LiveFeed() {
 
         {/* Filter Tabs */}
         {!isMinimized && (
-          <div className="flex gap-1 mt-3">
+          <div className="flex gap-1 mt-2 lg:mt-3">
             {(['all', 'tasks', 'agents'] as FeedFilter[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setFilter(tab)}
-                className={`px-3 py-1 text-xs rounded uppercase ${
+                className={`px-2 lg:px-3 py-1 text-xs rounded uppercase ${
                   filter === tab
                     ? 'bg-mc-accent text-mc-bg font-medium'
                     : 'text-mc-text-secondary hover:bg-mc-bg-tertiary'

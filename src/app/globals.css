@@ -18,6 +18,64 @@
   --mc-accent-cyan: #39d353;
 }
 
+/* iPhone SE / small Android (320px - 375px) */
+@media only screen and (max-width: 380px) {
+  .container-padding {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .modal-content {
+    margin: 0.5rem;
+    max-width: calc(100% - 1rem);
+  }
+  
+  .column-inbox,
+  .column-assigned,
+  .column-in_progress,
+  .column-review,
+  .column-done {
+    min-width: 280px;
+  }
+  
+  .workspace-card {
+    padding: 1rem;
+  }
+  
+  .header-title {
+    font-size: 1.125rem;
+  }
+  
+  .btn-primary {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* iPhone 12/13/14 (390px) */
+@media only screen and (max-width: 390px) {
+  .workspace-card {
+    padding: 1rem;
+  }
+  
+  .header-title {
+    font-size: 1.125rem;
+  }
+  
+  .btn-primary {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* Landscape orientation on mobile */
+@media only screen and (max-height: 500px) and (orientation: landscape) {
+  .modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+}
+
 * {
   box-sizing: border-box;
   padding: 0;

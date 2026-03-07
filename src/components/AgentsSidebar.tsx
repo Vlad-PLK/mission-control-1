@@ -118,15 +118,15 @@ export function AgentsSidebar({ workspaceId }: AgentsSidebarProps) {
   return (
     <aside
       className={`bg-mc-bg-secondary border-r border-mc-border flex flex-col transition-all duration-300 ease-in-out ${
-        isMinimized ? 'w-12' : 'w-64'
+        isMinimized ? 'w-12' : 'w-64 lg:w-64'
       }`}
     >
       {/* Header */}
-      <div className="p-3 border-b border-mc-border">
+      <div className="p-2 lg:p-3 border-b border-mc-border">
         <div className="flex items-center">
           <button
             onClick={toggleMinimize}
-            className="p-1 rounded hover:bg-mc-bg-tertiary text-mc-text-secondary hover:text-mc-text transition-colors"
+            className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-mc-bg-tertiary text-mc-text-secondary hover:text-mc-text transition-colors"
             aria-label={isMinimized ? 'Expand agents' : 'Minimize agents'}
           >
             {isMinimized ? (
@@ -149,8 +149,8 @@ export function AgentsSidebar({ workspaceId }: AgentsSidebarProps) {
           <>
             {/* Active Sub-Agents Counter */}
             {activeSubAgents > 0 && (
-              <div className="mb-3 mt-3 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-lg">
-                <div className="flex items-center gap-2 text-sm">
+              <div className="mb-2 lg:mb-3 mt-2 lg:mt-3 px-2 lg:px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <div className="flex items-center gap-2 text-xs lg:text-sm">
                   <span className="text-green-400">●</span>
                   <span className="text-mc-text">Active Sub-Agents:</span>
                   <span className="font-bold text-green-400">{activeSubAgents}</span>
@@ -159,12 +159,12 @@ export function AgentsSidebar({ workspaceId }: AgentsSidebarProps) {
             )}
 
             {/* Filter Tabs */}
-            <div className="flex gap-1">
+            <div className="flex gap-1 mt-2">
               {(['all', 'working', 'standby'] as FilterTab[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setFilter(tab)}
-                  className={`px-3 py-1 text-xs rounded uppercase ${
+                  className={`px-2 lg:px-3 py-1 text-xs rounded uppercase ${
                     filter === tab
                       ? 'bg-mc-accent text-mc-bg font-medium'
                       : 'text-mc-text-secondary hover:bg-mc-bg-tertiary'
