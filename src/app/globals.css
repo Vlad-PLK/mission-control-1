@@ -193,3 +193,75 @@ body {
 .online-glow {
   box-shadow: 0 0 10px var(--mc-accent-green), 0 0 20px var(--mc-accent-green);
 }
+
+/* Mobile Enhancement: Hide scrollbar but allow scroll */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile Enhancement: Snap scroll for Kanban columns */
+@media (max-width: 1023px) {
+  .snap-x {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .snap-start {
+    scroll-snap-align: start;
+  }
+  
+  .snap-mandatory > * {
+    scroll-snap-align: start;
+  }
+}
+
+/* Mobile Enhancement: Safe area for bottom nav */
+@media (max-width: 1023px) {
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+  }
+  
+  /* Ensure minimum touch targets */
+  button, 
+  [role="button"],
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Larger touch targets for task cards */
+  .task-card-touch {
+    min-height: 60px;
+    padding: 12px;
+  }
+}
+
+/* Mobile Enhancement: Swipe gesture feedback */
+.swipe-indicator {
+  transition: opacity 0.2s ease;
+}
+
+/* Mobile Enhancement: FAB positioning */
+@media (max-width: 1023px) {
+  .fab-position {
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0) + 80px);
+  }
+}
+
+/* Hide elements on mobile only */
+@media (max-width: 1023px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+}
+
+/* Show elements on mobile only */
+@media (min-width: 1024px) {
+  .show-on-mobile-only {
+    display: none !important;
+  }
+}

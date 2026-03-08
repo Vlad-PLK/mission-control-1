@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Plus, ChevronRight, GripVertical } from 'lucide-react';
 import { useMissionControl } from '@/lib/store';
 import { triggerAutoDispatch, shouldTriggerAutoDispatch } from '@/lib/auto-dispatch';
 import type { Task, TaskStatus } from '@/lib/types';
 import { TaskModal } from './TaskModal';
 import { formatDistanceToNow } from 'date-fns';
+import { ColumnQuickSwitcher, SwipeableTaskCard } from './MobileColumnNav';
+import { FloatingActionBar } from './FloatingActionBar';
+import { toast } from 'sonner';
 
 interface MissionQueueProps {
   workspaceId?: string;
@@ -27,9 +30,98 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [currentColumn, setCurrentColumn] = useState<TaskStatus>('inbox');
+  const [currentFilter, setCurrentFilter] = useState<string>('all');
+  const columnsRef = useRef<HTMLDivElement>(null);
 
-  const getTasksByStatus = (status: TaskStatus) =>
-    tasks.filter((task) => task.status === status);
+  const currentColumnIndex = COLUMNS.findIndex(c => c.id === currentColumn);
+
+  // Scroll to column when changed from quick switcher
+  useEffect(() => {
+    if (columnsRef.current) {
+      const columnEl = columnsRef.current.children[currentColumnIndex] as HTMLElement;
+      if (columnEl) {
+        columnEl.scrollIntoView({ behavior: 'smooth', inline: 'start' });
+      }
+    }
+  }, [currentColumn, currentColumnIndex]);
+
+  // Filter tasks based on current filter
+  const getFilteredTasks = (status: TaskStatus) => {
+    let filtered = tasks.filter((task) => task.status === status);
+    
+    switch (currentFilter) {
+      case 'unassigned':
+        filtered = filtered.filter(t => !t.assigned_agent_id);
+        break;
+      case 'high_priority':
+        filtered = filtered.filter(t => t.priority === 'high' || t.priority === 'urgent');
+        break;
+      case 'my_tasks':
+        // For now, show tasks that have any assignment
+        filtered = filtered.filter(t => t.assigned_agent_id);
+        break;
+    }
+    
+    return filtered;
+  };
+
+  const getTasksByStatus = (status: TaskStatus) => getFilteredTasks(status);
+
+  // Handle swipe to move task
+  const handleMoveTask = async (taskId: string, newStatus: TaskStatus) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || task.status === newStatus) return;
+
+    const oldStatus = task.status;
+    
+    // Optimistic update
+    updateTaskStatus(taskId, newStatus);
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (res.ok) {
+        addEvent({
+          id: crypto.randomUUID(),
+          type: newStatus === 'done' ? 'task_completed' : 'task_status_changed',
+          task_id: taskId,
+          message: `Task "${task.title}" moved to ${newStatus}`,
+          created_at: new Date().toISOString(),
+        });
+
+        // Check auto-dispatch
+        if (shouldTriggerAutoDispatch(oldStatus, newStatus, task.assigned_agent_id)) {
+          await triggerAutoDispatch({
+            taskId: task.id,
+            taskTitle: task.title,
+            agentId: task.assigned_agent_id,
+            agentName: task.assigned_agent?.name || 'Unknown Agent',
+            workspaceId: task.workspace_id
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update task status:', error);
+      updateTaskStatus(taskId, oldStatus);
+      toast.error('Failed to move task');
+    }
+  };
+
+  // Handle scroll to update current column
+  const handleScroll = () => {
+    if (columnsRef.current) {
+      const scrollLeft = columnsRef.current.scrollLeft;
+      const columnWidth = columnsRef.current.children[0]?.clientWidth || 250;
+      const newIndex = Math.round(scrollLeft / (columnWidth + 12)); // 12 is gap
+      const clampedIndex = Math.max(0, Math.min(newIndex, COLUMNS.length - 1));
+      setCurrentColumn(COLUMNS[clampedIndex].id);
+    }
+  };
 
   const handleDragStart = (e: React.DragEvent, task: Task) => {
     setDraggedTask(task);
@@ -48,54 +140,12 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
       return;
     }
 
-    // Optimistic update
-    updateTaskStatus(draggedTask.id, targetStatus);
-
-    // Persist to API
-    try {
-      const res = await fetch(`/api/tasks/${draggedTask.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: targetStatus }),
-      });
-
-      if (res.ok) {
-        // Add event
-        addEvent({
-          id: crypto.randomUUID(),
-          type: targetStatus === 'done' ? 'task_completed' : 'task_status_changed',
-          task_id: draggedTask.id,
-          message: `Task "${draggedTask.title}" moved to ${targetStatus}`,
-          created_at: new Date().toISOString(),
-        });
-
-        // Check if auto-dispatch should be triggered and execute it
-        if (shouldTriggerAutoDispatch(draggedTask.status, targetStatus, draggedTask.assigned_agent_id)) {
-          const result = await triggerAutoDispatch({
-            taskId: draggedTask.id,
-            taskTitle: draggedTask.title,
-            agentId: draggedTask.assigned_agent_id,
-            agentName: draggedTask.assigned_agent?.name || 'Unknown Agent',
-            workspaceId: draggedTask.workspace_id
-          });
-
-          if (!result.success) {
-            console.error('Auto-dispatch failed:', result.error);
-            // Optionally show error to user here if needed
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Failed to update task status:', error);
-      // Revert on error
-      updateTaskStatus(draggedTask.id, draggedTask.status);
-    }
-
+    await handleMoveTask(draggedTask.id, targetStatus);
     setDraggedTask(null);
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden pb-20 lg:pb-0">
       {/* Header */}
       <div className="p-3 border-b border-mc-border flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -111,14 +161,31 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
         </button>
       </div>
 
-      {/* Kanban Columns - horizontal scroll on mobile */}
-      <div className="flex-1 flex gap-2 lg:gap-3 p-2 lg:p-3 overflow-x-auto">
-        {COLUMNS.map((column) => {
+      {/* Floating Filter Bar - Mobile Only */}
+      <FloatingActionBar 
+        onNewTask={() => setShowCreateModal(true)}
+        currentFilter={currentFilter}
+        onFilterChange={setCurrentFilter}
+      />
+
+      {/* Kanban Columns - horizontal scroll with snap on mobile */}
+      <div 
+        ref={columnsRef}
+        onScroll={handleScroll}
+        className="flex-1 flex gap-2 lg:gap-3 p-2 lg:p-3 overflow-x-auto snap-x snap-mandatory lg:snap-none scroll-smooth"
+        style={{ scrollBehavior: 'smooth' }}
+      >
+        {COLUMNS.map((column, idx) => {
           const columnTasks = getTasksByStatus(column.id);
+          const isCurrentColumn = column.id === currentColumn;
+          
           return (
             <div
               key={column.id}
-              className={`flex-1 min-w-[180px] sm:min-w-[200px] md:min-w-[220px] max-w-[260px] lg:max-w-[300px] flex flex-col bg-mc-bg rounded-lg border border-mc-border/50 border-t-2 ${column.color}`}
+              snap-start
+              className={`flex-1 min-w-[85vw] sm:min-w-[200px] md:min-w-[220px] max-w-[260px] lg:max-w-[300px] flex flex-col bg-mc-bg rounded-lg border border-mc-border/50 border-t-2 ${column.color} snap-start lg:snap-none ${
+                isCurrentColumn ? 'ring-2 ring-mc-accent-cyan/30' : ''
+              }`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, column.id)}
             >
@@ -135,19 +202,37 @@ export function MissionQueue({ workspaceId }: MissionQueueProps) {
               {/* Tasks */}
               <div className="flex-1 overflow-y-auto p-2 space-y-2">
                 {columnTasks.map((task) => (
-                  <TaskCard
+                  <SwipeableTaskCard
                     key={task.id}
                     task={task}
-                    onDragStart={handleDragStart}
-                    onClick={() => setEditingTask(task)}
-                    isDragging={draggedTask?.id === task.id}
-                  />
+                    columns={COLUMNS}
+                    onMoveTask={handleMoveTask}
+                  >
+                    <TaskCard
+                      task={task}
+                      onDragStart={handleDragStart}
+                      onClick={() => setEditingTask(task)}
+                      isDragging={draggedTask?.id === task.id}
+                    />
+                  </SwipeableTaskCard>
                 ))}
+                {columnTasks.length === 0 && (
+                  <div className="text-center py-8 text-mc-text-secondary/50 text-sm">
+                    No tasks
+                  </div>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Column Quick Switcher - Mobile Only */}
+      <ColumnQuickSwitcher 
+        columns={COLUMNS}
+        currentColumn={currentColumn}
+        onColumnChange={setCurrentColumn}
+      />
 
       {/* Modals */}
       {showCreateModal && (
@@ -189,12 +274,12 @@ function TaskCard({ task, onDragStart, onClick, isDragging }: TaskCardProps) {
       draggable
       onDragStart={(e) => onDragStart(e, task)}
       onClick={onClick}
-      className={`group bg-mc-bg-secondary border rounded-lg cursor-pointer transition-all hover:shadow-lg hover:shadow-black/20 active:scale-[0.98] min-h-[44px] ${
+      className={`group bg-mc-bg-secondary border rounded-lg cursor-pointer transition-all hover:shadow-lg hover:shadow-black/20 active:scale-[0.98] min-h-[44px] touch-manipulation ${
         isDragging ? 'opacity-50 scale-95' : ''
       } ${isPlanning ? 'border-purple-500/40 hover:border-purple-500' : 'border-mc-border/50 hover:border-mc-accent/40'}`}
     >
       {/* Drag handle bar - visible on hover, always visible on touch devices */}
-      <div className="flex items-center justify-center py-1 border-b border-mc-border/30 opacity-0 group-hover:opacity-100 lg:opacity-0 transition-opacity touch:opacity-100">
+      <div className="flex items-center justify-center py-1 border-b border-mc-border/30 opacity-0 group-hover:opacity-100 lg:opacity-0 transition-opacity">
         <GripVertical className="w-4 h-4 text-mc-text-secondary/50 cursor-grab" />
       </div>
 
