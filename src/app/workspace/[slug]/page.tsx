@@ -222,12 +222,12 @@ export default function WorkspacePage() {
         </div>
 
         {/* Mobile/Tablet Layout: Tab-based navigation */}
-        <div className="lg:hidden flex flex-col flex-1 overflow-hidden">
+        <div className="lg:hidden flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Tab Content */}
-          <div className="flex-1 overflow-hidden relative">
+          <div className="flex-1 min-h-0 overflow-hidden relative">
             {mobileTab === 'tasks' && <MissionQueue workspaceId={workspace.id} />}
             {mobileTab === 'agents' && (
-              <div className="h-full overflow-y-auto">
+              <div className="h-full min-h-0 overflow-y-auto">
                 <AgentsSidebar workspaceId={workspace.id} mobile />
               </div>
             )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { X, Save, Trash2, Activity, Package, Bot, ClipboardList, Plus } from 'lucide-react';
 import { useMissionControl } from '@/lib/store';
 import { triggerAutoDispatch, shouldTriggerAutoDispatch } from '@/lib/auto-dispatch';
@@ -40,6 +40,15 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
     assigned_agent_id: task?.assigned_agent_id || '',
     due_date: task?.due_date || '',
   });
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,8 +162,8 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-mc-bg-secondary border border-mc-border rounded-t-xl sm:rounded-lg w-full max-w-2xl h-[92dvh] sm:h-auto sm:max-h-[90vh] flex flex-col modal-content">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-mc-bg-secondary border border-mc-border rounded-lg w-full max-w-xl max-h-[80dvh] flex flex-col modal-content">
         {/* Header */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-mc-border flex-shrink-0">
           <h2 className="text-base sm:text-lg font-semibold truncate pr-2">
