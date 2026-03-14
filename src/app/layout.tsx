@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={jetbrainsMono.variable}>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className={`${jetbrainsMono.className} bg-mc-bg text-mc-text min-h-screen touch-action-manipulation`}>
         <DemoBanner />

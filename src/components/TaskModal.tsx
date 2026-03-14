@@ -153,8 +153,8 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-mc-bg-secondary border border-mc-border rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col modal-content">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-mc-bg-secondary border border-mc-border rounded-t-xl sm:rounded-lg w-full max-w-2xl h-[92dvh] sm:h-auto sm:max-h-[90vh] flex flex-col modal-content">
         {/* Header */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-mc-border flex-shrink-0">
           <h2 className="text-base sm:text-lg font-semibold truncate pr-2">
@@ -168,21 +168,39 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
           </button>
         </div>
 
-        {/* Tabs - only show for existing tasks - horizontal scroll on mobile */}
+        {/* Tabs - mobile dropdown */}
         {task && (
-          <div className="flex border-b border-mc-border flex-shrink-0 overflow-x-auto">
+          <div className="sm:hidden border-b border-mc-border p-3">
+            <label className="block text-[11px] uppercase tracking-wider text-mc-text-secondary mb-1">Section</label>
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as TabType)}
+              className="w-full bg-mc-bg border border-mc-border rounded px-3 py-2 text-sm focus:outline-none focus:border-mc-accent"
+            >
+              {tabs.map((tab) => (
+                <option key={tab.id} value={tab.id}>
+                  {tab.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Tabs - desktop/tablet row */}
+        {task && (
+          <div className="hidden sm:flex border-b border-mc-border flex-shrink-0 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-h-[44px] ${
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap min-h-[44px] ${
                   activeTab === tab.id
                     ? 'text-mc-accent border-b-2 border-mc-accent'
                     : 'text-mc-text-secondary hover:text-mc-text'
                 }`}
               >
                 {tab.icon}
-                <span className="hidden xs:inline">{tab.label}</span>
+                <span>{tab.label}</span>
               </button>
             ))}
           </div>
@@ -243,7 +261,7 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Status */}
             <div>
               <label className="block text-sm font-medium mb-1">Status</label>
@@ -342,14 +360,14 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
 
         {/* Footer - only show on overview tab */}
         {activeTab === 'overview' && (
-          <div className="flex items-center justify-between p-4 border-t border-mc-border flex-shrink-0">
+          <div className="flex items-center justify-between p-3 sm:p-4 border-t border-mc-border flex-shrink-0 sticky bottom-0 bg-mc-bg-secondary">
             <div className="flex gap-2">
               {task && (
                 <>
                   <button
                     type="button"
                     onClick={handleDelete}
-                    className="flex items-center gap-2 px-3 py-2 text-mc-accent-red hover:bg-mc-accent-red/10 rounded text-sm"
+                    className="flex items-center gap-2 px-3 py-2 text-mc-accent-red hover:bg-mc-accent-red/10 rounded text-sm min-h-[44px]"
                   >
                     <Trash2 className="w-4 h-4" />
                     Delete
@@ -361,14 +379,14 @@ export function TaskModal({ task, onClose, workspaceId }: TaskModalProps) {
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm text-mc-text-secondary hover:text-mc-text"
+                className="px-4 py-2 text-sm text-mc-text-secondary hover:text-mc-text min-h-[44px]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="flex items-center gap-2 px-4 py-2 bg-mc-accent text-mc-bg rounded text-sm font-medium hover:bg-mc-accent/90 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-mc-accent text-mc-bg rounded text-sm font-medium hover:bg-mc-accent/90 disabled:opacity-50 min-h-[44px]"
               >
                 <Save className="w-4 h-4" />
                 {isSubmitting ? 'Saving...' : 'Save'}

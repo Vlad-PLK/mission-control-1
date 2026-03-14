@@ -9,6 +9,7 @@ import { AgentsSidebar } from '@/components/AgentsSidebar';
 import { MissionQueue } from '@/components/MissionQueue';
 import { LiveFeed } from '@/components/LiveFeed';
 import { SSEDebugPanel } from '@/components/SSEDebugPanel';
+
 import { useMissionControl } from '@/lib/store';
 import { useSSE } from '@/hooks/useSSE';
 import { debug } from '@/lib/debug';
@@ -32,7 +33,6 @@ export default function WorkspacePage() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('tasks');
-  const [showMobilePanels, setShowMobilePanels] = useState(false);
 
   // Connect to SSE for real-time updates
   useSSE();
@@ -224,14 +224,15 @@ export default function WorkspacePage() {
         {/* Mobile/Tablet Layout: Tab-based navigation */}
         <div className="lg:hidden flex flex-col flex-1 overflow-hidden">
           {/* Tab Content */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden relative">
             {mobileTab === 'tasks' && <MissionQueue workspaceId={workspace.id} />}
             {mobileTab === 'agents' && (
               <div className="h-full overflow-y-auto">
-                <AgentsSidebar workspaceId={workspace.id} />
+                <AgentsSidebar workspaceId={workspace.id} mobile />
               </div>
             )}
-            {mobileTab === 'feed' && <LiveFeed />}
+            {mobileTab === 'feed' && <LiveFeed mobile />}
+            
           </div>
 
           {/* Mobile Tab Bar */}

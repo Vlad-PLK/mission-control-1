@@ -8,7 +8,11 @@ import { formatDistanceToNow } from 'date-fns';
 
 type FeedFilter = 'all' | 'tasks' | 'agents';
 
-export function LiveFeed() {
+interface LiveFeedProps {
+  mobile?: boolean;
+}
+
+export function LiveFeed({ mobile = false }: LiveFeedProps) {
   const { events } = useMissionControl();
   const [filter, setFilter] = useState<FeedFilter>('all');
   const [isMinimized, setIsMinimized] = useState(false);
@@ -68,31 +72,36 @@ export function LiveFeed() {
 
   return (
     <aside
-      className={`bg-mc-bg-secondary border-l border-mc-border flex flex-col transition-all duration-300 ease-in-out ${
-        isMinimized ? 'w-12' : 'w-64 lg:w-80'
-      }`}
+      className={mobile
+        ? 'h-full w-full bg-mc-bg-secondary flex flex-col'
+        : `bg-mc-bg-secondary border-l border-mc-border flex flex-col transition-all duration-300 ease-in-out ${
+            isMinimized ? 'w-12' : 'w-64 lg:w-80'
+          }`
+      }
     >
       {/* Header */}
       <div className="p-2 lg:p-3 border-b border-mc-border">
         <div className="flex items-center">
-          <button
-            onClick={toggleMinimize}
-            className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-mc-bg-tertiary text-mc-text-secondary hover:text-mc-text transition-colors"
-            aria-label={isMinimized ? 'Expand feed' : 'Minimize feed'}
-          >
-            {isMinimized ? (
-              <ChevronLeft className="w-4 h-4" />
-            ) : (
-              <ChevronRight className="w-4 h-4" />
-            )}
-          </button>
-          {!isMinimized && (
+          {!mobile && (
+            <button
+              onClick={toggleMinimize}
+              className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-mc-bg-tertiary text-mc-text-secondary hover:text-mc-text transition-colors"
+              aria-label={isMinimized ? 'Expand feed' : 'Minimize feed'}
+            >
+              {isMinimized ? (
+                <ChevronLeft className="w-4 h-4" />
+              ) : (
+                <ChevronRight className="w-4 h-4" />
+              )}
+            </button>
+          )}
+          {(!isMinimized || mobile) && (
             <span className="text-sm font-medium uppercase tracking-wider">Live Feed</span>
           )}
         </div>
 
         {/* Filter Tabs */}
-        {!isMinimized && (
+        {(!isMinimized || mobile) && (
           <div className="flex gap-1 mt-2 lg:mt-3">
             {(['all', 'tasks', 'agents'] as FeedFilter[]).map((tab) => (
               <button
@@ -112,7 +121,7 @@ export function LiveFeed() {
       </div>
 
       {/* Events List */}
-      {!isMinimized && (
+      {(!isMinimized || mobile) && (
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {filteredEvents.length === 0 ? (
             <div className="text-center py-8 text-mc-text-secondary text-sm">
