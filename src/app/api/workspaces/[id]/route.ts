@@ -115,40 +115,49 @@ export async function DELETE(
     
     // Cascade delete in proper order (handles all related data)
     
-    // 1. End/cancel OpenClaw sessions for agents in this workspace
-    db.prepare(`
-      UPDATE openclaw_sessions 
-      SET status = 'ended', ended_at = datetime('now') 
-      WHERE agent_id IN (SELECT id FROM agents WHERE workspace_id = ?)
-    `).run(id);
+    // Use transaction for atomicity
+    const deleteWorkspace = db.transaction(() => {
+      // 1. End/cancel OpenClaw sessions for agents in this workspace
+      db.prepare(`
+        UPDATE openclaw_sessions 
+        SET status = 'ended', ended_at = datetime('now') 
+        WHERE agent_id IN (SELECT id FROM agents WHERE workspace_id = ?)
+      `).run(id);
+      
+      // 2. Delete events related to tasks and agents in this workspace
+      db.prepare('DELETE FROM events WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
+      db.prepare('DELETE FROM events WHERE agent_id IN (SELECT id FROM agents WHERE workspace_id = ?)').run(id);
+      
+      // 3. Delete task activities
+      db.prepare('DELETE FROM task_activities WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
+      
+      // 4. Delete task deliverables
+      db.prepare('DELETE FROM task_deliverables WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
+      
+      // 5. Delete planning questions
+      db.prepare('DELETE FROM planning_questions WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
+      
+      // 6. Delete planning specs
+      db.prepare('DELETE FROM planning_specs WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
+      
+      // 7. Delete conversations and their participants
+      db.prepare(`
+        DELETE FROM conversation_participants 
+        WHERE conversation_id IN (SELECT id FROM conversations WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?))
+      `).run(id);
+      db.prepare('DELETE FROM conversations WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
+      
+      // 8. Delete tasks
+      db.prepare('DELETE FROM tasks WHERE workspace_id = ?').run(id);
+      
+      // 9. Delete agents
+      db.prepare('DELETE FROM agents WHERE workspace_id = ?').run(id);
+      
+      // 10. Delete the workspace
+      db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
+    });
     
-    // 2. Delete task activities (cascades automatically via FK, but explicitly to be safe)
-    db.prepare('DELETE FROM task_activities WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
-    
-    // 3. Delete task deliverables
-    db.prepare('DELETE FROM task_deliverables WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
-    
-    // 4. Delete planning questions (cascades automatically via FK)
-    db.prepare('DELETE FROM planning_questions WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
-    
-    // 5. Delete planning specs (cascades automatically via FK)
-    db.prepare('DELETE FROM planning_specs WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
-    
-    // 6. Delete conversations and their participants (only those linked to tasks in this workspace)
-    db.prepare(`
-      DELETE FROM conversation_participants 
-      WHERE conversation_id IN (SELECT id FROM conversations WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?))
-    `).run(id);
-    db.prepare('DELETE FROM conversations WHERE task_id IN (SELECT id FROM tasks WHERE workspace_id = ?)').run(id);
-    
-    // 7. Delete tasks (will cascade to questions, specs, activities, deliverables)
-    db.prepare('DELETE FROM tasks WHERE workspace_id = ?').run(id);
-    
-    // 8. Delete agents (will cascade conversation_participants)
-    db.prepare('DELETE FROM agents WHERE workspace_id = ?').run(id);
-    
-    // 9. Finally delete the workspace itself
-    db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
+    deleteWorkspace();
     
     return NextResponse.json({ 
       success: true,
